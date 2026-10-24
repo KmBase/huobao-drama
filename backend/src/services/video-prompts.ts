@@ -60,7 +60,7 @@ export async function startVideoPromptBatch(
   ;(async () => {
     const agent = mastra.getAgent('prompt_generator')
     if (!agent) throw new Error('视频提示词 Agent 不可用')
-    const requestContext = buildAgentRequestContext({
+    const requestContext = await buildAgentRequestContext({
       episodeId,
       dramaId,
       modelOverride: opts.model || undefined,

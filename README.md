@@ -13,11 +13,11 @@
 
 [Features](#-features) • [Quick Start](#-quick-start) • [Walkthrough](#-visual-walkthrough) • [Desktop App](#-desktop-app-recommended) • [Deployment](#-deployment)
 
-<h2>🔑 <a href="https://api.firemux.com">Get a Huobao API Key 👉 Get started</a></h2>
+<h2>🔑 <a href="https://platform.agnes-ai.cn">Get an Agnes API Key 👉 Get started</a></h2>
 
 **Text, image, and video AI capabilities — one key unlocks everything**
 
-After deploying, paste the key in "Settings → Huobao Quick Setup" to write three recommended configs in one click
+After deploying, paste the key in "Settings → Agnes Quick Setup" to write three recommended configs in one click
 
 <h3>📥 <a href="https://github.com/chatfire-AI/huobao-drama/releases/latest">Download Desktop App (macOS / Windows)</a></h3>
 <h3>🌐 <a href="https://www.chatfire.site">Official Website</a></h3>
@@ -201,8 +201,8 @@ cd backend && npx tsx scripts/import-mysql-to-sqlite.ts
 All AI features (text/image/video) require model services to be configured first — a banner at the top of the page guides you until then:
 
 1. Open the "Settings" page
-2. Paste your Huobao API key in "Huobao Quick Setup" ([get one at api.firemux.com](https://api.firemux.com)) to write three recommended configs (text, image, video) in one click
-3. Or add providers one by one via "Manual Templates", with connectivity testing
+2. Paste your Agnes API key in "Agnes Quick Setup" ([get one at platform.agnes-ai.cn](https://platform.agnes-ai.cn)) to write three recommended configs (text, image, video) in one click
+3. Or add providers one by one via "Manual Setup": pick a vendor template / protocol, type any vendor name (OpenAI-compatible or private gateways welcome), with connectivity testing and remote model listing
 
 Once configured, the banner disappears and you can start producing episodes.
 
@@ -226,7 +226,7 @@ On the home page click "New Project", pick a **aspect ratio** (16:9 landscape / 
 
 ### Step 2 · Configure AI Services (first run)
 
-Paste an API key in Settings → "Huobao Quick Setup" to write the three recommended configs at once, or add providers manually. The current model can be switched any time from the top bar (see Step 5).
+Paste an API key in Settings → "Agnes Quick Setup" to write the three recommended configs at once, or add vendors manually via "Manual Setup". The current model can be switched any time from the top bar (see Step 5).
 
 <p align="center">
   <img src="docs/screenshots/03-settings-quick.png" alt="AI service setup" width="800">
@@ -329,7 +329,7 @@ Installation notes:
 - User-data directory: `~/Library/Application Support/HuobaoDrama/` (database, generated media, writable copies of online-edited skills)
 - FFmpeg/FFprobe binaries are bundled — no system install needed
 - Electron is pinned to 37.x: better-sqlite3's win32 prebuilds max out at that ABI (the key to compilation-free cross-packaging)
-- External links open in the system browser (e.g. "Get a key at api.firemux.com")
+- External links open in the system browser (e.g. "Get a key at platform.agnes-ai.cn")
 
 #### 🔄 In-App Updates (no Apple signing required)
 
@@ -491,7 +491,7 @@ A: No install needed. The project bundles `ffmpeg-static` / `ffprobe-static` bin
 
 ### Q: The top of the page says "No model configured"?
 
-A: That's the normal first-deploy guidance. Go to "Settings" and use "Huobao Quick Setup" to paste an API key and write configs in one click, or add providers via "Manual Templates". The banner disappears once text, image, and video all have an enabled config.
+A: That's the normal first-deploy guidance. Go to "Settings" and use "Agnes Quick Setup" to paste an API key and write configs in one click, or add vendors via "Manual Setup". The banner disappears once text, image, and video all have an enabled config.
 
 ### Q: The frontend can't reach the backend API?
 

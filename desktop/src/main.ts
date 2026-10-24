@@ -16,6 +16,7 @@ import * as fsp from 'fs/promises'
 import * as path from 'path'
 import { registerMigrationIpc } from './migrate'
 import { registerUpdater, markQuitting } from './updater'
+import { registerTunnelIpc, autoStartTunnel, shutdownTunnel, loadBackendPortPreference } from './tunnel'
 
 // 主进程打 CJS 产物，__dirname 天然可用（import.meta.url 在 CJS 下为 undefined）
 declare const __dirname: string
@@ -71,6 +72,25 @@ function getFreePort(): Promise<number> {
     })
     srv.on('error', reject)
   })
+}
+
+function isPortFree(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const srv = net.createServer()
+    srv.once('error', () => resolve(false))
+    srv.listen(port, '127.0.0.1', () => srv.close(() => resolve(true)))
+  })
+}
+
+/**
+ * 后端监听端口：优先用户设置的固定端口（默认 5679），被占用才回退随机。
+ * 内网穿透地址必须指向固定端口——每次启动随机端口会让隧道配置立刻失效。
+ */
+async function reserveBackendPort(): Promise<number> {
+  const preferred = loadBackendPortPreference() ?? 5679
+  if (await isPortFree(preferred)) return preferred
+  console.warn(`[main] 固定端口 ${preferred} 被占用，本次回退随机端口（内网穿透地址需更新）`)
+  return getFreePort()
 }
 
 async function waitHealthy(port: number, timeoutMs = 15000): Promise<void> {
@@ -218,7 +238,7 @@ function createWindow() {
   // 页面标题自带产品名，避免文件路径兜底标题
   mainWindow.on('page-title-updated', e => e.preventDefault())
   mainWindow.on('closed', () => { mainWindow = null })
-  // 外链一律交给系统浏览器：应用内不弹新窗（如设置页「前往 api.firemux.cn 获取 Key」）
+  // 外链一律交给系统浏览器：应用内不弹新窗（如设置页「前往 platform.agnes-ai.cn 获取 Key」）
   const isAppUrl = (url: string) => url.startsWith(`http://127.0.0.1:${backendPort}`)
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:\/\//i.test(url) && !isAppUrl(url)) void shell.openExternal(url)
@@ -240,7 +260,7 @@ let currentFrontendDist = ''
 
 async function bootstrap() {
   try {
-    backendPort = await getFreePort()
+    backendPort = await reserveBackendPort()
     const userData = app.getPath('userData')
     console.log(`[main] port=${backendPort} userData=${userData}`)
 
@@ -264,6 +284,8 @@ async function bootstrap() {
     startBackend()
     await waitHealthy(backendPort)
     console.log('[main] backend healthy, opening window')
+    registerTunnelIpc({ getWindow: () => mainWindow, getPort: () => backendPort })
+    autoStartTunnel(backendPort)
     await createWindow()
   } catch (err) {
     console.error('[main] 启动失败:', err)
@@ -331,6 +353,7 @@ registerUpdater(() => mainWindow)
 app.on('before-quit', () => {
   quitting = true
   markQuitting()
+  shutdownTunnel()
   backend?.kill()
 })
 

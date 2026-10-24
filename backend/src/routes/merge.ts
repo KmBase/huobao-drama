@@ -5,11 +5,16 @@ import { success, badRequest } from '../utils/response.js'
 import { mergeEpisodeVideos } from '../services/ffmpeg-merge.js'
 import { toSnakeCase } from '../utils/transform.js'
 import { logTaskError, logTaskStart, logTaskSuccess } from '../utils/task-logger.js'
+import { IS_SERVERLESS } from '../utils/runtime-mode.js'
 
 const app = new Hono()
 
 // POST /episodes/:id/merge — 拼接镜头视频(body.storyboard_ids 可选,只拼所选)
 app.post('/episodes/:id/merge', async (c) => {
+  // serverless 无 ffmpeg，成片拼接不可用（前端按 capabilities 预先禁用，此为后端兜底）
+  if (IS_SERVERLESS) {
+    return c.json({ code: 501, message: 'Serverless 部署暂不支持成片拼接导出（需要 FFmpeg），请使用桌面版或服务器部署版' }, 501)
+  }
   const episodeId = Number(c.req.param('id'))
   const [ep] = await db.select().from(schema.episodes).where(eq(schema.episodes.id, episodeId))
   if (!ep) return badRequest(c, '剧集不存在')

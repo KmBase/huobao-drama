@@ -27,6 +27,14 @@ export default async function afterPack(context) {
     const p = path.join(resourcesDir, 'bin', name)
     if (!fs.existsSync(p)) throw new Error(`打包产物缺少 bin/${name}（检查 prepare-resources 与 \${os} 目录命名）`)
   }
+  // cloudflared：mac 双架构各一份（运行时按 process.arch 挑），win 单 exe
+  const cloudflaredNames = context.electronPlatformName === 'darwin'
+    ? ['cloudflared-arm64', 'cloudflared-x64']
+    : ['cloudflared.exe']
+  for (const name of cloudflaredNames) {
+    const p = path.join(resourcesDir, 'bin', name)
+    if (!fs.existsSync(p)) throw new Error(`打包产物缺少 bin/${name}（内网穿透不可用；检查 prepare-resources 下载日志）`)
+  }
 
   if (context.electronPlatformName !== 'win32') return
   if (!fs.existsSync(WIN_BIN)) {

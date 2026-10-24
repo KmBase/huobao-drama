@@ -28,4 +28,16 @@ contextBridge.exposeInMainWorld('huobaoDesktop', {
     ipcRenderer.on('huobao:update-progress', listener)
     return () => ipcRenderer.removeListener('huobao:update-progress', listener)
   },
+  // ---- 内网穿透（cloudflared 托管） ----
+  getTunnelState: () => ipcRenderer.invoke('huobao:tunnel-state'),
+  getTunnelConfig: () => ipcRenderer.invoke('huobao:tunnel-config'),
+  setTunnelConfig: (next: Record<string, unknown>) => ipcRenderer.invoke('huobao:tunnel-set-config', next),
+  startTunnel: () => ipcRenderer.invoke('huobao:tunnel-start'),
+  stopTunnel: () => ipcRenderer.invoke('huobao:tunnel-stop'),
+  /** 订阅隧道状态变化；返回取消订阅函数 */
+  onTunnelState: (cb: (state: unknown) => void) => {
+    const listener = (_event: unknown, state: unknown) => cb(state)
+    ipcRenderer.on('huobao:tunnel-state', listener)
+    return () => ipcRenderer.removeListener('huobao:tunnel-state', listener)
+  },
 })

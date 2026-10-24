@@ -1,8 +1,8 @@
 import { Hono } from 'hono'
-import { eq } from 'drizzle-orm'
+import { and, desc, eq, inArray, like, ne, sql } from 'drizzle-orm'
 import { db, schema } from '../db/index.js'
 import { success, created, badRequest } from '../utils/response.js'
-import { generateImage, generateVideo } from '../services/generation.js'
+import { generateImage, generateVideo, sweepProcessingTasks, cancelTask, retryTask } from '../services/generation.js'
 import { getActiveConfig, getConfigById } from '../services/ai.js'
 import { getDramaStylePrompt } from '../services/style-preset.js'
 import { logTaskError, logTaskPayload, logTaskStart, logTaskSuccess } from '../utils/task-logger.js'
@@ -214,26 +214,124 @@ app.get('/:id', async (c) => {
   return success(c, row || null)
 })
 
-// GET /tasks — 按 type / storyboard_id / drama_id 过滤
+// GET /tasks — 列表：type / status / drama_id / storyboard_id / keyword(prompt 模糊) + 分页 + 状态统计
 app.get('/', async (c) => {
   const type = c.req.query('type')
-  const storyboardId = c.req.query('storyboard_id')
-  const dramaId = c.req.query('drama_id')
+  const status = c.req.query('status')
+  const dramaId = Number(c.req.query('drama_id')) || undefined
+  const storyboardId = Number(c.req.query('storyboard_id')) || undefined
+  const keyword = (c.req.query('keyword') || '').trim()
+  const page = Math.max(1, Number(c.req.query('page')) || 1)
+  const pageSize = Math.min(200, Math.max(1, Number(c.req.query('page_size')) || 50))
 
-  let rows = await db.select().from(schema.sysTask)
+  const conds = []
+  if (type) conds.push(eq(schema.sysTask.type, type))
+  if (status) conds.push(eq(schema.sysTask.status, status))
+  if (dramaId) conds.push(eq(schema.sysTask.dramaId, dramaId))
+  if (storyboardId) conds.push(eq(schema.sysTask.storyboardId, storyboardId))
+  if (keyword) conds.push(like(schema.sysTask.prompt, `%${keyword}%`))
+  const where = conds.length ? and(...conds) : undefined
 
-  if (type) rows = rows.filter(r => r.type === type)
-  if (storyboardId) rows = rows.filter(r => r.storyboardId === Number(storyboardId))
-  if (dramaId) rows = rows.filter(r => r.dramaId === Number(dramaId))
+  const [totalRow] = await db.select({ n: sql<number>`count(*)` }).from(schema.sysTask).where(where)
+  const countRows = await db.select({ status: schema.sysTask.status, n: sql<number>`count(*)` })
+    .from(schema.sysTask).groupBy(schema.sysTask.status)
+  const items = await db.select().from(schema.sysTask)
+    .where(where)
+    .orderBy(desc(schema.sysTask.createdAt), desc(schema.sysTask.id))
+    .limit(pageSize)
+    .offset((page - 1) * pageSize)
 
-  return success(c, rows)
+  return success(c, {
+    items,
+    total: Number(totalRow?.n || 0),
+    page,
+    pageSize,
+    counts: Object.fromEntries(countRows.map(r => [r.status, Number(r.n)])),
+  })
 })
 
-// DELETE /tasks/:id
+// DELETE /tasks/:id — 进行中的任务不可直接删（先取消），终态记录可删
 app.delete('/:id', async (c) => {
   const id = Number(c.req.param('id'))
+  const [row] = await db.select({ status: schema.sysTask.status }).from(schema.sysTask)
+    .where(eq(schema.sysTask.id, id))
+  if (row?.status === 'processing') return badRequest(c, '任务进行中，请先取消再删除')
   await db.delete(schema.sysTask).where(eq(schema.sysTask.id, id))
   return success(c)
 })
+
+// POST /tasks/:id/cancel — 取消进行中的任务（上游无法撤回，结果将被丢弃）
+app.post('/:id/cancel', async (c) => {
+  const id = Number(c.req.param('id'))
+  if (!Number.isFinite(id)) return badRequest(c, '无效的任务 ID')
+  const outcome = await cancelTask(id)
+  if (outcome === 'not-found') return badRequest(c, '任务不存在')
+  if (outcome === 'not-cancellable') return badRequest(c, '仅进行中的任务可取消')
+  return success(c)
+})
+
+// POST /tasks/:id/retry — 重试失败/已取消的任务：还原原始入参新建任务（保留历史）
+app.post('/:id/retry', async (c) => {
+  const id = Number(c.req.param('id'))
+  if (!Number.isFinite(id)) return badRequest(c, '无效的任务 ID')
+  try {
+    const newId = await retryTask(id)
+    const [record] = await db.select().from(schema.sysTask).where(eq(schema.sysTask.id, newId))
+    logTaskSuccess('TaskAPI', 'retry', { originId: id, taskId: newId })
+    return created(c, record)
+  } catch (err: any) {
+    logTaskError('TaskAPI', 'retry', { originId: id, error: err.message })
+    return badRequest(c, err.message)
+  }
+})
+
+// POST /tasks/batch-delete — 批量删除（进行中的任务自动跳过）
+app.post('/batch-delete', async (c) => {
+  const body = await c.req.json().catch(() => ({}))
+  const ids: number[] = Array.isArray(body.ids)
+    ? body.ids.map(Number).filter((n: number) => Number.isInteger(n) && n > 0)
+    : []
+  if (!ids.length) return badRequest(c, 'ids 必须为非空数字数组')
+  const rows = await db.select({ id: schema.sysTask.id })
+    .from(schema.sysTask)
+    .where(and(inArray(schema.sysTask.id, ids), ne(schema.sysTask.status, 'processing')))
+  if (rows.length) {
+    await db.delete(schema.sysTask).where(inArray(schema.sysTask.id, rows.map(r => r.id)))
+  }
+  return success(c, { deleted: rows.length, skipped: ids.length - rows.length })
+})
+
+// POST /tasks/clear — 按 scope 清理已结束的任务记录（processing 永不清理，媒体文件保留）
+app.post('/clear', async (c) => {
+  const body = await c.req.json().catch(() => ({}))
+  const scope = String(body.scope || 'finished')
+  const STATUSES = ['completed', 'failed', 'cancelled']
+  const statuses = STATUSES.includes(scope) ? [scope] : STATUSES
+  const rows = await db.select({ id: schema.sysTask.id })
+    .from(schema.sysTask)
+    .where(inArray(schema.sysTask.status, statuses))
+  if (rows.length) {
+    await db.delete(schema.sysTask).where(inArray(schema.sysTask.id, rows.map(r => r.id)))
+  }
+  return success(c, { deleted: rows.length })
+})
+
+// POST /tasks/sweep + GET /tasks/sweep — serverless 任务续跑
+// GET 供 Vercel Cron 调用（cron 仅发 GET，自带 Authorization: Bearer ${CRON_SECRET}）；POST 供外部监控/手动触发
+function sweepHandler() {
+  return async (c: any) => {
+    const secret = process.env.CRON_SECRET
+    if (secret) {
+      const auth = c.req.header('authorization') || ''
+      if (auth !== `Bearer ${secret}`) {
+        return c.json({ code: 401, message: 'unauthorized' }, 401)
+      }
+    }
+    const result = await sweepProcessingTasks()
+    return success(c, result)
+  }
+}
+app.post('/sweep', sweepHandler())
+app.get('/sweep', sweepHandler())
 
 export default app

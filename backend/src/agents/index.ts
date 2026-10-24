@@ -295,14 +295,16 @@ async function getModel(fileModel: string | undefined, modelOverride?: string, t
   // 请求可指定文本配置（含其 provider/baseUrl/apiKey），否则回退到当前启用配置
   const textConfig = (textConfigId ? await getConfigById(textConfigId) : null) || await getTextConfig()
   const modelName = modelOverride || fileModel || textConfig.model
-  const providerName = textConfig.provider.toLowerCase()
+  // 厂商只用于展示/日志，协议才决定走哪套 SDK 与请求补丁
+  const protocolName = (textConfig.protocol || textConfig.provider).toLowerCase()
   const resolvedBaseURL = getTextProviderBaseUrl(textConfig)
   const temperature = textConfig.temperature ?? null
-  const endpointKey = `${providerName}|${resolvedBaseURL}|${modelName}|t=${temperature ?? 'default'}`
+  const endpointKey = `${protocolName}|${resolvedBaseURL}|${modelName}|t=${temperature ?? 'default'}`
   if (endpointKey !== lastLoggedTextEndpointKey) {
     lastLoggedTextEndpointKey = endpointKey
     logTaskProgress('AIConfig', 'text-model-endpoint', {
       provider: textConfig.provider,
+      protocol: protocolName,
       baseUrl: resolvedBaseURL,
       model: modelName,
       ...(temperature !== null ? { temperature } : {}),
@@ -310,15 +312,15 @@ async function getModel(fileModel: string | undefined, modelOverride?: string, t
   }
 
   // 叠加请求补丁：thinking-off（非官方端点）+ 配置温度 + 输出上限（非官方 OpenAI）
-  const thinkingOffFetch = createThinkingOffFetch(providerName, resolvedBaseURL)
+  const thinkingOffFetch = createThinkingOffFetch(protocolName, resolvedBaseURL)
   const tempFetch = temperature !== null
-    ? createTemperatureFetch(providerName, temperature, thinkingOffFetch)
+    ? createTemperatureFetch(protocolName, temperature, thinkingOffFetch)
     : thinkingOffFetch
   const fetchImpl = isOfficialOpenAIHost(resolvedBaseURL)
     ? tempFetch
-    : createMaxTokensFetch(providerName, tempFetch)
+    : createMaxTokensFetch(protocolName, tempFetch)
 
-  if (providerName === 'gemini') {
+  if (protocolName === 'gemini') {
     const googleProvider = createGoogleGenerativeAI({
       apiKey: textConfig.apiKey,
       baseURL: resolvedBaseURL,

@@ -1,4 +1,4 @@
----
+﻿---
 name: script-rewriter
 description: 小说改写为格式化剧本的方法论和规范
 ---

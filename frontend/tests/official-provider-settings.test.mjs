@@ -4,95 +4,87 @@ import assert from 'node:assert/strict'
 
 const settingsPage = readFileSync(new URL('../app/pages/settings.vue', import.meta.url), 'utf8')
 const useApi = readFileSync(new URL('../app/composables/useApi.ts', import.meta.url), 'utf8')
+const catalog = readFileSync(new URL('../../backend/src/services/provider-catalog.ts', import.meta.url), 'utf8')
+const aiService = readFileSync(new URL('../../backend/src/services/ai.ts', import.meta.url), 'utf8')
+const aiConfigRoute = readFileSync(new URL('../../backend/src/routes/aiConfigs.ts', import.meta.url), 'utf8')
 
-function providerPresetBlock(serviceType) {
-  const presetsStart = settingsPage.indexOf('const providerPresets = {')
-  assert.notEqual(presetsStart, -1, 'missing providerPresets')
-  const marker = `  ${serviceType}: {`
-  const start = settingsPage.indexOf(marker, presetsStart)
-  assert.notEqual(start, -1, `missing ${serviceType} provider presets`)
-  const end = settingsPage.indexOf('\n  },', start)
-  assert.notEqual(end, -1, `unterminated ${serviceType} provider presets`)
-  return settingsPage.slice(start, end)
-}
-
-test('settings page exposes official provider templates only', () => {
-  assert.doesNotMatch(settingsPage, /provider:\s*'chatfire'/i)
+test('vendor names are free-form and the protocol drives the wire format', () => {
+  // 设置页不再内置厂商白名单，模板数据全部来自后端目录
+  assert.doesNotMatch(settingsPage, /const providers\s*=\s*\[/)
+  assert.doesNotMatch(settingsPage, /const providerPresets\s*=\s*\{/)
+  assert.doesNotMatch(settingsPage, /firemux/i)
   assert.doesNotMatch(settingsPage, /openrouter/i)
-  assert.doesNotMatch(settingsPage, /huobaoPreset/i)
-  assert.doesNotMatch(settingsPage, /applyHuobaoPreset/i)
-  assert.doesNotMatch(settingsPage, /\/huobao-preset/)
   assert.doesNotMatch(useApi, /api\.firemux\.com/i)
-  assert.doesNotMatch(useApi, /applyHuobaoPreset/i)
-  assert.doesNotMatch(useApi, /openrouter/i)
-  assert.doesNotMatch(useApi, /huobaoPreset/i)
-  assert.doesNotMatch(useApi, /\/huobao-preset/)
+  assert.doesNotMatch(useApi, /firemux/i)
 
-  assert.match(settingsPage, /const providers = \['gemini', 'openai', 'volcengine', 'minimax', 'aliyun'\]/)
-  assert.match(settingsPage, /https:\/\/generativelanguage\.googleapis\.com/)
-  assert.match(settingsPage, /https:\/\/api\.openai\.com/)
-  assert.match(settingsPage, /https:\/\/ark\.cn-beijing\.volces\.com/)
-  assert.match(settingsPage, /https:\/\/\{WorkspaceId\}\.cn-beijing\.maas\.aliyuncs\.com/)
-  assert.doesNotMatch(settingsPage, /https:\/\/api\.deepseek\.com/)
-  assert.doesNotMatch(settingsPage, /https:\/\/dashscope\.aliyuncs\.com/)
-  assert.doesNotMatch(settingsPage, /https:\/\/api\.vidu\.com/)
-  assert.doesNotMatch(settingsPage, /\['ali'|'ali',|, 'ali'\]/)
-  assert.match(settingsPage, /火宝快捷配置/)
-  assert.match(settingsPage, /https:\/\/api\.firemux\.com/)
-  assert.match(settingsPage, /applyHuobaoQuickConfig/)
-  assert.doesNotMatch(settingsPage, /https:\/\/api\.minimax\.io/)
+  // 协议白名单在 ai.ts 里，按服务类型区分
+  assert.match(aiService, /text:\s*\['openai', 'gemini', 'volcengine'\]/)
+  assert.match(aiService, /image:\s*\['openai', 'gemini', 'volcengine', 'agnes'\]/)
+  assert.match(aiService, /video:\s*\['volcengine', 'minimax', 'aliyun', 'agnes'\]/)
+
+  // 协议标签随目录下发，旧代码里基于 provider 名做协议判定的分支必须消失
+  assert.match(aiService, /PROTOCOL_LABELS/)
+  assert.doesNotMatch(aiService, /providerName\s*===\s*'gemini'/)
 })
 
-test('settings page offers official default model IDs', () => {
-  assert.match(settingsPage, /gemini-3\.1-pro-preview/)
-  assert.match(settingsPage, /gemini-3\.5-flash/)
-  assert.match(settingsPage, /gemini-3-flash-preview/)
-  assert.match(settingsPage, /gpt-5\.6-terra/)
-  assert.match(settingsPage, /deepseek-v4-flash/)
-  assert.match(settingsPage, /gemini-3-pro-image/)
-  assert.match(settingsPage, /gemini-3\.1-flash-image/)
-  assert.match(settingsPage, /gpt-image-2/)
-  assert.match(settingsPage, /doubao-seedance-2-0-260128/)
-  assert.match(settingsPage, /doubao-seedance-2-0-fast-260128/)
-  assert.match(settingsPage, /doubao-seedance-2-0-mini-260615/)
-  assert.match(settingsPage, /wan3\.0-video-prime/)
-  assert.match(settingsPage, /wan3\.0-video/)
-  assert.match(settingsPage, /deepseek-v4-pro/)
-  assert.doesNotMatch(settingsPage, /gpt-5\.4/)
-  assert.doesNotMatch(settingsPage, /doubao-seed-1-6/)
-  assert.doesNotMatch(settingsPage, /wan2\.6-t2i/)
-  assert.doesNotMatch(settingsPage, /wan2\.6-i2v-flash/)
-  assert.doesNotMatch(settingsPage, /viduq3-turbo/)
-  assert.doesNotMatch(settingsPage, /viduq3-pro/)
-  assert.doesNotMatch(settingsPage, /gemini-2\.5-flash/)
-  assert.doesNotMatch(settingsPage, /gpt-4\.1-mini/)
-  assert.doesNotMatch(settingsPage, /gpt-image-1/)
-  assert.doesNotMatch(settingsPage, /gemini-3-pro-image-preview/)
-  assert.doesNotMatch(settingsPage, /gemini-3\.1-flash-image-preview/)
-  assert.doesNotMatch(settingsPage, /doubao-seedream/)
-  assert.doesNotMatch(settingsPage, /speech-2\.8-hd/)
+test('the backend catalog is the single source of vendor presets', () => {
+  assert.match(catalog, /export const vendorPresets/)
+  assert.match(catalog, /export const quickConfigs/)
+  assert.match(catalog, /export function vendorsFor/)
+  assert.match(catalog, /CUSTOM_VENDOR\s*=\s*'custom'/)
+
+  // Agnes 取代旧的中转站快捷配置：文本走 OpenAI 兼容，图片/视频走 agnes 协议
+  assert.match(catalog, /https:\/\/api\.agnes-ai\.cn/)
+  assert.match(catalog, /id: 'agnes'/)
+  assert.match(catalog, /agnes-3\.0-flash/)
+  assert.match(catalog, /agnes-image-2\.5-flash/)
+  assert.match(catalog, /agnes-video-2\.5-flash/)
+
+  // 官方厂商端点保留
+  assert.match(catalog, /https:\/\/api\.openai\.com/)
+  assert.match(catalog, /https:\/\/generativelanguage\.googleapis\.com/)
+  assert.match(catalog, /https:\/\/ark\.cn-beijing\.volces\.com/)
+  assert.match(catalog, /https:\/\/\{WorkspaceId\}\.cn-beijing\.maas\.aliyuncs\.com/)
+
+  // 已下线的厂商不再出现
+  assert.doesNotMatch(catalog, /firemux/i)
+  assert.doesNotMatch(catalog, /vidu/i)
 })
 
-test('only text service configs expose the connection test button', () => {
-  assert.match(settingsPage, /v-if="st\.type === 'text'" class="btn btn-ghost btn-sm" @click="testExistingCfg\(c\)">\{\{ t\('settings\.ai\.test'\) \}\}/)
+test('the settings page consumes the provider catalog instead of hardcoded presets', () => {
+  assert.match(useApi, /aiProvidersAPI/)
+  assert.match(useApi, /ai-configs\/models/)
+  assert.match(settingsPage, /aiProvidersAPI\.catalog/)
+  assert.match(settingsPage, /catalog\.protocols/)
+  assert.match(settingsPage, /catalog\.vendors/)
+  assert.match(settingsPage, /vendorChips\(/)
+  assert.match(settingsPage, /applyVendorPreset\(/)
+  assert.match(settingsPage, /protocolOptions/)
+  assert.match(settingsPage, /protocolLabel\(/)
+  assert.match(settingsPage, /startAddCfg\(/)
+  assert.match(settingsPage, /moveCfg\(/)
+  assert.match(settingsPage, /fetchRemoteModels\(/)
+  assert.match(settingsPage, /canListModels/)
 })
 
-test('settings page offers the supported official provider presets', () => {
-  assert.match(providerPresetBlock('text'), /deepseek-v4-pro/)
-  assert.doesNotMatch(providerPresetBlock('text'), /minimax/i)
-  assert.doesNotMatch(providerPresetBlock('image'), /'ali'|minimax/i)
-  assert.match(providerPresetBlock('video'), /volcengine/)
-  assert.match(providerPresetBlock('video'), /minimax/)
-  assert.match(providerPresetBlock('video'), /aliyun/)
-  assert.doesNotMatch(providerPresetBlock('video'), /'vidu'/i)
-  assert.doesNotMatch(settingsPage, /audio:\s*\{/)
+test('every service type exposes protocol selection, model fetching and priority ordering', () => {
+  // 协议下拉按服务类型取可选协议
+  assert.match(settingsPage, /:options="protocolOptions"/)
+  // 在线获取模型只在支持列表拉取的协议上可用
+  assert.match(settingsPage, /catalog\.modelListProtocols/)
+  assert.match(aiConfigRoute, /MODEL_LIST_PROTOCOLS\s*=\s*\['openai', 'gemini', 'volcengine'\]/)
+  // 测试按钮对所有服务类型可用（不再只限文本）
+  assert.match(settingsPage, /@click="testExistingCfg\(c\)"/)
+  assert.doesNotMatch(settingsPage, /v-if="st\.type === 'text'" class="btn btn-ghost btn-sm" @click="testExistingCfg/)
+  // 列表内上下移动优先级
+  assert.match(settingsPage, /@click="moveCfg\(st\.type, c, -1\)"/)
+  assert.match(settingsPage, /@click="moveCfg\(st\.type, c, 1\)"/)
 })
 
-test('Huobao quick config includes Wan 3.0 through the Qwen gateway route', () => {
-  const quickStart = settingsPage.indexOf('const huobaoQuickConfigs = [')
-  assert.notEqual(quickStart, -1)
-  const quickConfigs = settingsPage.slice(quickStart, settingsPage.indexOf('\n]', quickStart) + 2)
-  assert.match(quickConfigs, /provider:\s*'aliyun'/)
-  assert.match(quickConfigs, /base_url:\s*'https:\/\/api\.firemux\.com\/qwen'/)
-  assert.match(quickConfigs, /model:\s*\['wan3\.0-video-prime', 'wan3\.0-video'\]/)
+test('legacy rows without a protocol column fall back to the provider name', () => {
+  assert.match(aiService, /export function resolveProtocol/)
+  assert.match(aiService, /export function isKnownProtocol/)
+  assert.match(aiService, /export function protocolsFor/)
+  assert.match(aiConfigRoute, /protocol: resolveProtocol\(r\.protocol, r\.provider\)/)
+  assert.match(aiConfigRoute, /protocol: String\(body\.protocol\)\.toLowerCase\(\)/)
 })

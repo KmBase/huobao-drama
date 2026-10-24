@@ -89,16 +89,25 @@ export const propAPI = {
   generateImage: (id: number, episodeId: number, model?: string, configId?: number, textModel?: string, textConfigId?: number) => api.post(`/props/${id}/generate-image`, { episode_id: episodeId, model: model || undefined, config_id: configId || undefined, text_model: textModel || undefined, text_config_id: textConfigId || undefined }),
 }
 
-// 统一生成任务（图片/视频）：POST 带 type 字段，列表按 type 过滤
+// 统一生成任务（图片/视频）：POST 带 type 字段，列表支持筛选/搜索/分页/状态统计
 export const taskAPI = {
   generate: (d: any) => api.post('/tasks', d),
   get: (id: number) => api.get(`/tasks/${id}`),
   del: (id: number) => api.del(`/tasks/${id}`),
-  list: (params?: { type?: 'image' | 'video'; drama_id?: number; storyboard_id?: number }) => {
+  cancel: (id: number) => api.post(`/tasks/${id}/cancel`),
+  retry: (id: number) => api.post(`/tasks/${id}/retry`),
+  batchDelete: (ids: number[]) => api.post<{ deleted: number; skipped: number }>('/tasks/batch-delete', { ids }),
+  clear: (scope: 'completed' | 'failed' | 'cancelled' | 'finished' = 'finished') =>
+    api.post<{ deleted: number }>('/tasks/clear', { scope }),
+  list: (params?: { type?: 'image' | 'video'; status?: string; drama_id?: number; storyboard_id?: number; keyword?: string; page?: number; page_size?: number }) => {
     const query = new URLSearchParams()
     if (params?.type) query.set('type', params.type)
+    if (params?.status) query.set('status', params.status)
     if (params?.drama_id) query.set('drama_id', String(params.drama_id))
     if (params?.storyboard_id) query.set('storyboard_id', String(params.storyboard_id))
+    if (params?.keyword) query.set('keyword', params.keyword)
+    if (params?.page) query.set('page', String(params.page))
+    if (params?.page_size) query.set('page_size', String(params.page_size))
     return api.get(`/tasks${query.size ? `?${query.toString()}` : ''}`)
   },
   // 按集聚合生成任务（sys_task + video_merges）
@@ -120,8 +129,61 @@ async function uploadReq<T = any>(path: string, file: File): Promise<T> {
 
 export const uploadAPI = {
   image: (f: File) => uploadReq<{ url: string; path: string }>('/upload/image', f),
-  video: (f: File) => uploadReq<{ url: string; path: string }>('/upload/video', f),
-  audio: (f: File) => uploadReq<{ url: string; path: string }>('/upload/audio', f),
+  video: (f: File) => uploadLargeMedia(f, 'video'),
+  audio: (f: File) => uploadLargeMedia(f, 'audio'),
+}
+
+// ─── 部署形态能力协商（GET /capabilities，单例缓存） ────────────────
+export interface Capabilities {
+  mode: 'server' | 'serverless'
+  /** server → 服务端 FFmpeg 拼接；none → serverless 不可用（引导桌面/服务器版） */
+  merge: 'server' | 'none'
+  /** serverless 无 ffmpeg 海报帧 */
+  poster: boolean
+  /** blob → 视频/音频走 Blob 直传（Vercel 函数 4.5MB 请求体限制） */
+  storage: 'local' | 'blob'
+  taskDriver: string
+  serverUpdate: boolean
+}
+
+let _capsPromise: Promise<Capabilities> | null = null
+
+export function loadCapabilities(): Promise<Capabilities> {
+  if (!_capsPromise) {
+    _capsPromise = api.get<Capabilities>('/capabilities').catch(() => ({
+      // 后端不可达/旧版本：按完整能力兜底（本地形态默认值）
+      mode: 'server', merge: 'server', poster: true, storage: 'local', taskDriver: 'inline', serverUpdate: true,
+    }))
+  }
+  return _capsPromise
+}
+
+const VIDEO_EXT = new Set(['.mp4', '.mov', '.webm', '.m4v'])
+const AUDIO_EXT = new Set(['.mp3', '.wav', '.m4a', '.aac'])
+
+/**
+ * 视频/音频上传：blob 形态走 Vercel Blob 客户端直传（大文件超函数请求体限制），
+ * 本地形态维持 multipart 走服务端。返回形态与 multipart 端点一致（规范相对路径）。
+ */
+async function uploadLargeMedia(file: File, kind: 'video' | 'audio'): Promise<{ url: string; path: string }> {
+  const caps = await loadCapabilities()
+  const ext = (() => {
+    const i = file.name.lastIndexOf('.')
+    return i >= 0 ? file.name.slice(i).toLowerCase() : ''
+  })()
+  const allowed = kind === 'video' ? VIDEO_EXT : AUDIO_EXT
+  if (!allowed.has(ext)) {
+    throw new Error(`仅支持 ${Array.from(allowed).join('/')} 格式的${kind === 'video' ? '视频' : '音频'}文件`)
+  }
+  if (caps.storage !== 'blob') return uploadReq(`/upload/${kind}`, file)
+
+  const pathname = `static/uploads/${Date.now()}_${crypto.randomUUID().slice(0, 8)}${ext}`
+  const { upload } = await import('@vercel/blob/client')
+  const blob = await upload(pathname, file, {
+    handleUploadUrl: '/api/v1/upload/direct',
+    access: 'public',
+  })
+  return { url: `/${blob.pathname}`, path: blob.pathname }
 }
 export const mergeAPI = {
   merge: (epId: number, storyboardIds?: number[]) => api.post(`/merge/episodes/${epId}/merge`, storyboardIds?.length ? { storyboard_ids: storyboardIds } : {}),
@@ -134,6 +196,13 @@ export const aiConfigAPI = {
   update: (id: number, d: any) => api.put(`/ai-configs/${id}`, d),
   del: (id: number) => api.del(`/ai-configs/${id}`),
   test: (d: any) => api.post('/ai-configs/test', d),
+  // 拉取远端模型列表（openai/gemini/volcengine 协议支持）
+  models: (d: any) => api.post('/ai-configs/models', d),
+}
+
+// 厂商/协议目录（后端统一下发，模板与协议下拉的唯一数据源）
+export const aiProvidersAPI = {
+  catalog: () => api.get<{ protocols: Record<string, { value: string; label: string }[]>; vendors: any[] }>('/ai-providers'),
 }
 
 // lang 缺省/为 zh 时读写基础版（不带 query，保持原请求形态）
@@ -168,6 +237,9 @@ export const storageAPI = {
 export const settingsAPI = {
   contentLanguage: () => api.get<{ language: string }>('/settings/content-language'),
   setContentLanguage: (language: string) => api.put('/settings/content-language', { language }),
+  /** 公网媒体地址（内网穿透 / 反代出口），URL-only 协议（Agnes）用它回源本地媒体 */
+  publicMediaBaseUrl: () => api.get<{ url: string | null, fromEnv: boolean }>('/settings/public-media-base-url'),
+  setPublicMediaBaseUrl: (url: string) => api.put<{ url: string | null }>('/settings/public-media-base-url', { url }),
 }
 
 // 服务器/Docker 部署的版本检查与更新（桌面版走 useDesktopBridge，不用此 API）

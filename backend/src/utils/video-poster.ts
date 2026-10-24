@@ -3,6 +3,7 @@
  */
 import path from 'path'
 import { getAbsolutePath } from './storage.js'
+import { IS_SERVERLESS } from './runtime-mode.js'
 import { ffmpeg, checkFfmpegSuite } from './ffmpeg.js'
 
 /** 由视频相对路径推导海报帧路径：static/videos/x.mp4 → static/videos/x_poster.jpg */
@@ -16,6 +17,9 @@ export function posterPathFor(relativePath: string): string {
  */
 export async function extractVideoPoster(relativePath: string): Promise<string | null> {
   try {
+    // serverless 形态无 ffmpeg，海报帧直接跳过（前端 <video> 自动出首帧预览兜底）
+    if (IS_SERVERLESS) return null
+
     // ffmpeg 二进制损坏（跨平台拷贝 node_modules / 下载不完整）时静默跳过，
     // 避免 fluent-ffmpeg 延迟回调里的同步 EFTYPE 崩掉整个进程
     const { ffmpeg: ffmpegOk } = await checkFfmpegSuite()

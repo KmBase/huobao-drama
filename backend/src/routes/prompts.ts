@@ -8,6 +8,8 @@ import { success, badRequest } from '../utils/response.js'
 import { skillsManagerWorkspace } from '../agents/skills.js'
 import { validAgentTypes, DEFAULT_PROMPTS } from '../agents/index.js'
 import { loadAgentPromptFile, serializePromptFile, promptFilePath } from '../agents/prompts.js'
+import { IS_SERVERLESS } from '../utils/runtime-mode.js'
+import { promptOverrideKey, setOverride, deleteOverride } from '../services/workspace-overrides.js'
 
 const app = new Hono()
 const fsm = () => skillsManagerWorkspace.filesystem!
@@ -63,6 +65,7 @@ app.get('/:type', async (c) => {
 })
 
 // PUT /prompts/:type?lang= — 保存为 prompt 文件（lang 非 zh 写语言变体；model 只随基础版保存）
+// serverless：写 workspace_overrides 覆盖层（文件系统只读）；reset 同理
 app.put('/:type', async (c) => {
   const type = c.req.param('type')
   if (!checkType(type)) return badRequest(c, '未知的 Agent 类型')
@@ -73,21 +76,35 @@ app.put('/:type', async (c) => {
   if (lang === 'zh') {
     const name = String(body.name || DEFAULT_PROMPTS[type].name)
     const model = String(body.model ?? '').trim()
-    await fsm().writeFile(promptFilePath(type), serializePromptFile({ name, model, instructions }), { recursive: true })
+    const raw = serializePromptFile({ name, model, instructions })
+    if (IS_SERVERLESS) {
+      await setOverride(promptOverrideKey(type, 'zh'), raw)
+    } else {
+      await fsm().writeFile(promptFilePath(type), raw, { recursive: true })
+    }
     return success(c, { agent_type: type, lang, name, model, is_default: false })
   }
   // 语言变体：model 不从变体读取，name 仅作展示；保留变体自己的 name（缺省用基础版/默认名）
   const base = await loadAgentPromptFile(type)
   const name = String(body.name || base?.name || DEFAULT_PROMPTS[type].name)
-  await fsm().writeFile(promptFilePath(type, lang), serializePromptFile({ name, model: '', instructions }), { recursive: true })
+  const raw = serializePromptFile({ name, model: '', instructions })
+  if (IS_SERVERLESS) {
+    await setOverride(promptOverrideKey(type, lang), raw)
+  } else {
+    await fsm().writeFile(promptFilePath(type, lang), raw, { recursive: true })
+  }
   return success(c, { agent_type: type, lang, name, is_default: false })
 })
 
-// POST /prompts/:type/reset?lang= — 删除对应语言文件，回退（变体→基础版；基础版→代码默认）
+// POST /prompts/:type/reset?lang= — 删除对应语言文件/覆盖层，回退（变体→基础版；基础版→代码默认）
 app.post('/:type/reset', async (c) => {
   const type = c.req.param('type')
   if (!checkType(type)) return badRequest(c, '未知的 Agent 类型')
   const lang = normalizeLang(c.req.query('lang'))
+  if (IS_SERVERLESS) {
+    await deleteOverride(promptOverrideKey(type, lang))
+    return success(c, { agent_type: type, lang, is_default: true })
+  }
   const path = promptFilePath(type, lang)
   if (await fsm().exists(path)) await fsm().deleteFile(path)
   return success(c, { agent_type: type, lang, is_default: true })

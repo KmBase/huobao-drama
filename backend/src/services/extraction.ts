@@ -39,7 +39,7 @@ export function startExtraction(episodeId: number, dramaId: number, target: Extr
   ;(async () => {
     const agent = mastra.getAgent('extractor')
     if (!agent) throw new Error('提取 Agent 不可用')
-    const requestContext = buildAgentRequestContext({
+    const requestContext = await buildAgentRequestContext({
       episodeId,
       dramaId,
       modelOverride: opts.model || undefined,

@@ -9,6 +9,7 @@
  * 文件即唯一事实来源；文件缺失时由调用方回退到代码默认值。
  */
 import { skillsManagerWorkspace } from './skills.js'
+import { getOverride, promptOverrideKey } from '../services/workspace-overrides.js'
 
 export interface AgentPromptFile {
   name: string
@@ -57,18 +58,30 @@ async function readPromptFile(path: string): Promise<AgentPromptFile | null> {
   }
 }
 
-/** 读取基础版（中文）prompt 文件 — model 字段永远只从基础版解析，避免多语言文件漂移 */
-export function loadBasePromptFile(agentType: string): Promise<AgentPromptFile | null> {
+/** 读取基础版（中文）prompt — 覆盖层（serverless 编辑）优先于文件 */
+export async function loadBasePromptFile(agentType: string): Promise<AgentPromptFile | null> {
+  const override = await getOverride(promptOverrideKey(agentType, 'zh'))
+  if (override) {
+    const parsed = parsePromptFile(override)
+    if (parsed.instructions) return parsed
+  }
   return readPromptFile(promptFilePath(agentType))
 }
 
 /**
  * 读取 Agent 的 prompt 文件；lang 非 zh 时优先语言变体（<type>.<lang>.md），缺失回退基础版。
  * 变体的 model 字段无效：返回时 model 始终取基础版的值。
+ * 覆盖层（workspace_overrides，serverless 编辑）优先于文件，语言变体与基础版各自独立覆盖。
  */
 export async function loadAgentPromptFile(agentType: string, lang?: string | null): Promise<AgentPromptFile | null> {
   const base = await loadBasePromptFile(agentType)
   if (!lang || lang === 'zh') return base
+
+  const langOverride = await getOverride(promptOverrideKey(agentType, lang))
+  if (langOverride) {
+    const parsed = parsePromptFile(langOverride)
+    if (parsed.instructions) return { ...parsed, model: base?.model || '' }
+  }
   const localized = await readPromptFile(promptFilePath(agentType, lang))
   if (!localized) return base
   return { ...localized, model: base?.model || '' }

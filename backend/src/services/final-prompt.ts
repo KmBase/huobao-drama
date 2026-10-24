@@ -22,7 +22,7 @@ export interface PromptAgentOptions { model?: string; configId?: number }
 async function runPromptAgent(episodeId: number, dramaId: number, message: string, opts?: PromptAgentOptions) {
   const agent = mastra.getAgent('prompt_generator')
   if (!agent) throw new Error('图片提示词 Agent 不可用')
-  const requestContext = buildAgentRequestContext({
+  const requestContext = await buildAgentRequestContext({
     episodeId,
     dramaId,
     modelOverride: opts?.model || undefined,

@@ -46,14 +46,15 @@ export class VolcEngineImageAdapter implements ImageProviderAdapter {
   }
 
   parseGenerateResponse(result: any): ImageGenResponse {
-    // 火山引擎可能返回 task_id 进行轮询
-    if (result.task_id || result.id) {
-      return { isAsync: true, taskId: result.task_id || result.id }
-    }
-    // 同步返回
+    // 同步返回优先判断：Ark 图片接口的响应也带 id（请求标识），
+    // 先判 id 会把同步结果误判成异步任务导致无意义轮询
     const imageUrl = result.data?.[0]?.url || result.url
     if (imageUrl) {
       return { isAsync: false, imageUrl }
+    }
+    // 无图片载荷时才视为 task_id 轮询模式
+    if (result.task_id || result.id) {
+      return { isAsync: true, taskId: result.task_id || result.id }
     }
     throw new Error('No image URL in response')
   }

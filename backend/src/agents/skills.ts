@@ -13,6 +13,7 @@ import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { Workspace, LocalFilesystem } from '@mastra/core/workspace'
+import { listOverridesByPrefix } from '../services/workspace-overrides.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -117,13 +118,23 @@ async function readLocalizedSkill(relPath: string, lang: string): Promise<string
 /** 读取 Agent 专属技能全文（经 workspace.skills API，保持原注入格式）
  *  AGENT_SKILL_MAP 的目录按前缀匹配：目录自身及其子目录下所有 SKILL.md 都会注入，
  *  因此设置页新建的子技能（如 storyboard-breaker/xxx）无需改代码即可生效。
+ *  覆盖层（workspace_overrides，serverless 编辑/新建）优先：lang 覆盖 → zh 覆盖 → 语言变体文件 → 基础文件；
+ *  仅存在于覆盖层的技能（serverless 新建，无文件）同样按前缀匹配注入。
  *  lang 非 zh 时逐技能优先 SKILL.<lang>.md，缺失回退基础版（中文） */
 export async function loadAgentSkills(agentType: string, lang?: string | null): Promise<string> {
   const workspace = skillWorkspaces[agentType]
   const prefixes = AGENT_SKILL_MAP[agentType] || []
   if (!workspace || !prefixes.length) return ''
 
-  const allPaths = scanSkillPaths().map(p => p.replace(/^skills\//, ''))
+  const overrides = await listOverridesByPrefix('skill/')  // key: skill/<relPath>:<lang>
+  const overridePaths = new Set<string>()
+  for (const key of overrides.keys()) {
+    const m = /^skill\/(.+):[a-z]{2}$/.exec(key)
+    if (m) overridePaths.add(m[1]!)
+  }
+
+  const filePaths = scanSkillPaths().map(p => p.replace(/^skills\//, ''))
+  const allPaths = [...new Set([...filePaths, ...overridePaths])]
   const relPaths = allPaths.filter(p =>
     prefixes.some(prefix => p === prefix || p.startsWith(prefix + '/')))
 
@@ -131,8 +142,15 @@ export async function loadAgentSkills(agentType: string, lang?: string | null): 
   const contents: string[] = []
   for (const relPath of relPaths) {
     let body: string | null | undefined
-    if (useLocalized) body = await readLocalizedSkill(relPath, lang!)
-    if (!body) {
+    // 覆盖层存的是编辑器原文（含 frontmatter），注入正文前与文件路径一致地剥壳
+    const overrideBody = (key: string) => {
+      const raw = overrides.get(key)
+      return raw ? stripFrontmatter(raw) : null
+    }
+    if (useLocalized) body = overrideBody(`skill/${relPath}:${lang}`)
+    if (!body) body = overrideBody(`skill/${relPath}:zh`)
+    if (!body && useLocalized) body = await readLocalizedSkill(relPath, lang!)
+    if (!body && filePaths.includes(relPath)) {
       const skill = await workspace.skills?.get(`skills/${relPath}`)
       body = skill?.instructions?.trim()
     }

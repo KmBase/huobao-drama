@@ -5,6 +5,7 @@
  * - 种子语句去掉 FROM DUAL（SQLite 非法），幂等语义（WHERE NOT EXISTS）保留
  */
 import type Database from 'better-sqlite3'
+import type { Client } from '@libsql/client'
 
 export const sqliteSchemaStatements = [
   `CREATE TABLE IF NOT EXISTS dramas (
@@ -160,6 +161,7 @@ export const sqliteSchemaStatements = [
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     service_type TEXT NOT NULL,
     provider TEXT,
+    protocol TEXT,
     name TEXT NOT NULL,
     base_url TEXT NOT NULL,
     api_key TEXT NOT NULL,
@@ -294,6 +296,14 @@ export const sqliteSchemaStatements = [
     value TEXT NOT NULL,
     updated_at TEXT NOT NULL
   )`,
+
+  // serverless 形态的 workspace 可写内容覆盖层（skills/prompts 在线编辑）：
+  // key 形如 skill/<path>:<lang> 或 prompt/<agentType>:<lang>；本地形态不使用（直写文件）
+  `CREATE TABLE IF NOT EXISTS workspace_overrides (
+    key TEXT PRIMARY KEY,
+    content TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  )`,
 ]
 
 /**
@@ -368,16 +378,40 @@ const REMOVED_SEED_PROMPTS: Record<string, string> = {
 
 // INSERT ... SELECT WHERE NOT EXISTS → 幂等：只补缺失行，不覆盖用户编辑
 // （SQLite 无 FROM DUAL，无 FROM 的 SELECT 合法）
-const SEED_SQL = 'INSERT INTO style_presets ("name", "value", "prompt", "description", "sort_order", "is_active", "created_at", "updated_at") SELECT ?, ?, ?, ?, ?, 1, ?, ? WHERE NOT EXISTS (SELECT 1 FROM style_presets WHERE value = ?)'
+// export：libSQL 初始化路径（db/index.ts 的 libsql 分支）复用同一组种子语句
+export const SEED_SQL = 'INSERT INTO style_presets ("name", "value", "prompt", "description", "sort_order", "is_active", "created_at", "updated_at") SELECT ?, ?, ?, ?, ?, 1, ?, ? WHERE NOT EXISTS (SELECT 1 FROM style_presets WHERE value = ?)'
 // 内容寻址升级：命中旧种子原文才更新（用户在设置页改过的行不动）
-const UPGRADE_SQL = 'UPDATE style_presets SET "name" = ?, "prompt" = ?, "description" = ?, "sort_order" = ?, "updated_at" = ? WHERE "value" = ? AND "prompt" = ?'
+export const UPGRADE_SQL = 'UPDATE style_presets SET "name" = ?, "prompt" = ?, "description" = ?, "sort_order" = ?, "updated_at" = ? WHERE "value" = ? AND "prompt" = ?'
 // 内容寻址下架：命中下架种子原文才删除
-const REMOVE_SQL = 'DELETE FROM style_presets WHERE "value" = ? AND "prompt" = ?'
+export const REMOVE_SQL = 'DELETE FROM style_presets WHERE "value" = ? AND "prompt" = ?'
+
+const LEGACY_PROTOCOL_BACKFILL_SQL =
+  `UPDATE ai_service_configs SET protocol = lower(trim(provider)) ` +
+  `WHERE protocol IS NULL AND lower(trim(coalesce(provider, ''))) ` +
+  `IN ('openai', 'gemini', 'volcengine', 'minimax', 'aliyun')`
+
+/**
+ * 幂等补列迁移：缺列才 ALTER TABLE ADD COLUMN，随后执行可选回填语句。
+ * CREATE TABLE IF NOT EXISTS 不会给已存在的表补列，新增字段必须走这里。
+ */
+function ensureColumn(sqlite: Database.Database, table: string, column: string, definition: string, backfill?: string) {
+  const has = sqlite.prepare('SELECT 1 AS x FROM pragma_table_info(?) WHERE name = ?')
+    .get(table, column) as { x?: number } | undefined
+  if (has?.x) return
+  sqlite.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`)
+  if (backfill) {
+    const res = sqlite.prepare(backfill).run()
+    if (res.changes > 0) console.log(`🔧 ${table}.${column} 已补列并回填 ${res.changes} 行`)
+  }
+}
 
 export function initSqliteSchema(sqlite: Database.Database) {
   for (const statement of sqliteSchemaStatements) {
     sqlite.exec(statement)
   }
+  // 存量库升级：CREATE TABLE IF NOT EXISTS 不会给已存在的表补列，新字段必须走幂等 ALTER
+  ensureColumn(sqlite, 'ai_service_configs', 'protocol', 'TEXT', LEGACY_PROTOCOL_BACKFILL_SQL)
+
   const insertSeed = sqlite.prepare(SEED_SQL)
   const upgradeSeed = sqlite.prepare(UPGRADE_SQL)
   const removeSeed = sqlite.prepare(REMOVE_SQL)
@@ -393,5 +427,50 @@ export function initSqliteSchema(sqlite: Database.Database) {
   for (const [value, prompt] of Object.entries(REMOVED_SEED_PROMPTS)) {
     const res = removeSeed.run(value, prompt)
     if (res.changes > 0) console.log(`🗑️ 风格预设「${value}」已下架`)
+  }
+}
+
+// ─── libSQL（Turso）初始化路径 ────────────────────────────────────
+// 与 better-sqlite3 路径共享同一组语句常量，仅驱动 API 不同（async）。
+// 语句为标准 SQLite 方言（AUTOINCREMENT / pragma_table_info 均兼容，见 spike-libsql.ts 验证）。
+
+async function ensureColumnLibsql(client: Client, table: string, column: string, definition: string, backfill?: string) {
+  const has = await client.execute({
+    sql: 'SELECT 1 AS x FROM pragma_table_info(?) WHERE name = ?',
+    args: [table, column],
+  })
+  if (has.rows.length > 0) return
+  await client.execute(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`)
+  if (backfill) {
+    const res = await client.execute(backfill)
+    if (res.rowsAffected > 0) console.log(`🔧 ${table}.${column} 已补列并回填 ${res.rowsAffected} 行`)
+  }
+}
+
+export async function initLibsqlSchema(client: Client) {
+  for (const statement of sqliteSchemaStatements) {
+    await client.executeMultiple(statement)
+  }
+  // 存量库升级：同 better-sqlite3 路径，幂等补列
+  await ensureColumnLibsql(client, 'ai_service_configs', 'protocol', 'TEXT', LEGACY_PROTOCOL_BACKFILL_SQL)
+
+  for (const s of stylePresetSeeds) {
+    const ts = new Date().toISOString()
+    await client.execute({
+      sql: SEED_SQL,
+      args: [s.name, s.value, s.prompt, s.description, s.sortOrder, ts, ts, s.value],
+    })
+    const legacyPrompt = LEGACY_SEED_PROMPTS[s.value]
+    if (legacyPrompt) {
+      const res = await client.execute({
+        sql: UPGRADE_SQL,
+        args: [s.name, s.prompt, s.description, s.sortOrder, ts, s.value, legacyPrompt],
+      })
+      if (res.rowsAffected > 0) console.log(`🎨 风格预设「${s.name}」已升级为结构化提示词`)
+    }
+  }
+  for (const [value, prompt] of Object.entries(REMOVED_SEED_PROMPTS)) {
+    const res = await client.execute({ sql: REMOVE_SQL, args: [value, prompt] })
+    if (res.rowsAffected > 0) console.log(`🗑️ 风格预设「${value}」已下架`)
   }
 }

@@ -1,8 +1,34 @@
 import { Hono } from 'hono'
 import { success, badRequest } from '../utils/response.js'
 import { saveUploadedFile, generateImageThumb } from '../utils/storage.js'
+import { IS_SERVERLESS } from '../utils/runtime-mode.js'
 
 const app = new Hono()
+
+// POST /upload/direct — Vercel Blob 客户端直传握手端点（仅 serverless 形态）
+// 前端用 @vercel/blob/client 的 upload(pathname, file, { handleUploadUrl: '/api/v1/upload/direct' })
+// 直传大文件（视频 50MB 超过 Vercel 函数 4.5MB 请求体限制，必须绕过函数体）。
+// pathname 沿用规范布局 static/uploads/<uuid>.<ext>，与 multipart 上传产物路径一致。
+app.post('/direct', async (c) => {
+  if (!IS_SERVERLESS) {
+    return badRequest(c, '直传端点仅 serverless 形态可用，请使用 /upload/video 或 /upload/audio')
+  }
+  const { handleUpload } = await import('@vercel/blob/client')
+  const body = await c.req.json().catch(() => ({}))
+  const result = await handleUpload({
+    request: c.req.raw,
+    body,
+    onBeforeGenerateToken: async () => ({
+      // uuid 命名由前端生成，禁随机后缀以保持相对路径规范形态
+      addRandomSuffix: false,
+      // 与本地形态的视频/音频限额对齐（参考视频 50MB）
+      maximumSizeInBytes: 50 * 1024 * 1024,
+    }),
+    // 回调仅用于对账，业务以客户端 upload() 的返回值为准
+    onUploadCompleted: async () => {},
+  })
+  return c.json(result as Record<string, unknown>)
+})
 
 // POST /upload/image
 app.post('/image', async (c) => {

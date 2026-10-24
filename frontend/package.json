@@ -7,9 +7,11 @@
     "build": "nuxt build",
     "generate": "nuxt generate",
     "preview": "nuxt preview",
-    "postinstall": "nuxt prepare"
+    "postinstall": "nuxt prepare",
+    "vercel-build": "nuxt generate"
   },
   "dependencies": {
+    "@vercel/blob": "^2.8.2",
     "driver.js": "^1.8.0",
     "lucide-vue-next": "^0.511.0",
     "nuxt": "^3.17.5",

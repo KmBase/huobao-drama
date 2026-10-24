@@ -1,0 +1,16 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "builds": [
+    { "src": "backend/api/[[...route]].ts", "use": "@vercel/node", "config": { "memory": 1024 } },
+    { "src": "frontend/package.json", "use": "@vercel/static-build", "config": { "distDir": ".output/public" } }
+  ],
+  "routes": [
+    { "src": "/api/(.*)", "dest": "backend/api/[[...route]].ts" },
+    { "src": "/static/(.*)", "dest": "backend/api/[[...route]].ts" },
+    { "handle": "filesystem" },
+    { "src": "/(.*)", "dest": "/index.html" }
+  ],
+  "crons": [
+    { "path": "/api/v1/tasks/sweep", "schedule": "* * * * *" }
+  ]
+}

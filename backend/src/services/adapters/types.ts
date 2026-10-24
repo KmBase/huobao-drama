@@ -1,9 +1,19 @@
 /**
+ * 参考图片（含首尾帧）传给上游的形态：
+ * - `data-url`：本地文件编码为 Base64 Data URI 内联（OpenAI / Gemini / 火山 / Wan 等接受）
+ * - `public-url`：只接受公网可访问 URL（Agnes 全系），本地文件需经内网穿透 / 反代暴露
+ */
+export type ReferenceImageTransport = 'data-url' | 'public-url'
+
+/**
  * 图片生成 Provider Adapter 接口
  */
 export interface ImageProviderAdapter {
   /** 厂商标识 */
   provider: string
+
+  /** 参考图传输形态；缺省 `data-url` */
+  referenceImageTransport?: ReferenceImageTransport
 
   /**
    * 构建图片生成请求
@@ -48,6 +58,9 @@ export interface ImageProviderAdapter {
 export interface VideoProviderAdapter {
   provider: string
 
+  /** 参考图 / 首尾帧传输形态；缺省 `data-url` */
+  referenceImageTransport?: ReferenceImageTransport
+
   buildGenerateRequest(config: AIConfig, record: VideoGenerationRecord): ProviderRequest
 
   parseGenerateResponse(result: any): VideoGenResponse
@@ -74,7 +87,12 @@ export interface ProviderRequest {
 }
 
 export interface AIConfig {
+  /** 配置行 id（ai_service_configs），sweep 续跑时由 params.__configId 还原配置 */
+  id: number
+  /** 厂商标识（展示/日志用） */
   provider: string
+  /** 接口协议（决定选用哪个 Adapter） */
+  protocol: string
   baseUrl: string
   apiKey: string
   model: string

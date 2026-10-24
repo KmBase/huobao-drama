@@ -3,6 +3,12 @@ productName: HuobaoDrama
 directories:
   output: release
   buildResources: build
+# 显式声明无发布源：否则 electron-builder 会按 package.json 的 repository 字段
+# 连 GitHub API 解析更新信息，国内网络下常超时导致打包末尾失败
+publish: null
+# 直接使用本地已安装的 Electron 运行时，跳过 Release zip 下载
+# （直连 github.com 在国内网络下经常 connect ETIMEDOUT；ELECTRON_MIRROR 只对当次会话生效）
+electronDist: node_modules/electron/dist
 # 主进程产物 + 后端 bundle + 清单（进入 asar）。
 # backend.mjs 必须在 asar 内：其 externals（sharp/better-sqlite3）经 createRequire
 # 向上解析到 app.asar/node_modules（.node 由 Electron 自动重定向到 app.asar.unpacked）

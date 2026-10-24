@@ -155,6 +155,8 @@ export const aiServiceConfigs = sqliteTable('ai_service_configs', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   serviceType: text('service_type').notNull(),
   provider: text('provider'),
+  /** 接口协议（openai/gemini/volcengine/minimax/aliyun/agnes），与 provider 解耦；由协议白名单校验 */
+  protocol: text('protocol'),
   name: text('name').notNull(),
   baseUrl: text('base_url').notNull(),
   apiKey: text('api_key').notNull(),
@@ -287,5 +289,12 @@ export const assets = sqliteTable('assets', {
 export const appSettings = sqliteTable('app_settings', {
   key: text('key').primaryKey(),
   value: text('value').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+// serverless 形态的 workspace 可写内容覆盖层（skills/prompts 在线编辑，见 services/workspace-overrides.ts）
+export const workspaceOverrides = sqliteTable('workspace_overrides', {
+  key: text('key').primaryKey(),
+  content: text('content').notNull(),
   updatedAt: text('updated_at').notNull(),
 })

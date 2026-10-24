@@ -137,19 +137,22 @@ export class OpenAIImageAdapter implements ImageProviderAdapter {
   }
 
   parseGenerateResponse(result: any): ImageGenResponse {
-    // OpenAI DALL-E 3 目前是同步返回，但规范上也有异步 task 模式
-    if (result.task_id || result.id) {
-      return { isAsync: true, taskId: result.task_id || result.id }
-    }
+    // 同步响应优先判断：多数 OpenAI 兼容网关（含 Agnes）同步返回
+    // { data: [{ url }], task_id }，task_id/id 只是响应标识，
+    // 若先判 task_id 会把同步结果误判成异步任务，轮询不存在的端点直至超时
     const imageUrl = result.data?.[0]?.url || result.url
     if (imageUrl) {
       return { isAsync: false, imageUrl }
     }
-    // b64_json 模式
+    // b64_json 模式（空串视为无载荷，继续走后续判断）
     const b64 = result.data?.[0]?.b64_json
     if (b64) {
       // 对于 base64，返回特殊标记，实际处理在 extractImageBase64
       return { isAsync: false, imageUrl: undefined }
+    }
+    // 无任何图片载荷时才视为异步 task 模式
+    if (result.task_id || result.id) {
+      return { isAsync: true, taskId: result.task_id || result.id }
     }
     throw new Error('No image URL in response')
   }

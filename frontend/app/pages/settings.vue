@@ -85,37 +85,27 @@
             </div>
             <p class="setup-desc">
               {{ t('settings.ai.quickDesc') }}
-              <a class="huobao-site-link" :href="huobaoSiteUrl" target="_blank" rel="noopener noreferrer">
+              <a class="quick-site-link" :href="quickSiteUrl" target="_blank" rel="noopener noreferrer">
                 {{ t('settings.ai.getKey') }}
                 <ExternalLink :size="12" :stroke-width="1.8" />
               </a>
             </p>
-            <div class="huobao-quick-row">
-              <input v-model="huobaoApiKey" class="input" type="password" placeholder="Huobao API Key" />
-              <div class="lang-picker">
-                <button
-                  type="button"
-                  :class="['lang-option', { on: huobaoRegion === 'cn' }]"
-                  @click="huobaoRegion = 'cn'"
-                >{{ t('settings.ai.regionCn') }}</button>
-                <button
-                  type="button"
-                  :class="['lang-option', { on: huobaoRegion === 'com' }]"
-                  @click="huobaoRegion = 'com'"
-                >{{ t('settings.ai.regionCom') }}</button>
-              </div>
-              <button class="btn btn-primary" :disabled="huobaoSaving" @click="applyHuobaoQuickConfig">
-                <Loader2 v-if="huobaoSaving" :size="13" class="animate-spin" />
+            <div class="quick-row">
+              <input v-model="quickApiKey" class="input" type="password" :placeholder="t('settings.ai.quickKeyPlaceholder')" />
+              <button class="btn btn-primary" :disabled="quickSaving" @click="applyQuickConfigs">
+                <Loader2 v-if="quickSaving" :size="13" class="animate-spin" />
                 <Sparkles v-else :size="13" />
                 {{ t('settings.ai.applyQuick') }}
               </button>
             </div>
-            <div class="huobao-quick-models">
-              <div v-for="q in huobaoQuickConfigs" :key="q.name" class="hqm-row">
+            <div class="quick-models">
+              <div v-for="q in quickConfigs" :key="q.name" class="hqm-row">
                 <span class="hqm-label">{{ serviceMeta[q.service_type].label }}</span>
                 <span class="hqm-provider">
                   <img v-if="providerIconUrl(q.provider)" :src="providerIconUrl(q.provider)" class="hqm-provider-icon" alt="" />
-                  {{ q.provider }}
+                  <span v-else class="provider-initial">{{ q.provider.slice(0, 1).toUpperCase() }}</span>
+                  {{ vendorLabel(q.provider) }}
+                  <span class="hqm-protocol">{{ protocolLabel(q.protocol) }}</span>
                 </span>
                 <span class="hqm-models mono">
                   <span v-for="(m, i) in q.model" :key="m" :class="['hqm-model', { 'is-default': i === 0 }]">
@@ -133,14 +123,20 @@
               </div>
             </div>
             <div class="template-row">
-              <button
-                v-for="st in serviceTypes"
-                :key="st.type"
-                class="template-type-chip"
-                @click="startAddCfg(st.type)"
-              >
-                {{ st.label }}
-              </button>
+              <div v-for="st in serviceTypes" :key="`tpl-${st.type}`" class="template-type-block">
+                <span class="template-type-label">{{ st.label }}</span>
+                <div class="template-vendor-chips">
+                  <button
+                    v-for="v in vendorChips(st.type)"
+                    :key="`${st.type}-${v.id}`"
+                    class="template-vendor-chip"
+                    @click="startAddCfg(st.type, v.id)"
+                  >
+                    <img v-if="providerIconUrl(v.id)" :src="providerIconUrl(v.id)" class="template-vendor-icon" alt="" />
+                    {{ v.label }}
+                  </button>
+                </div>
+              </div>
             </div>
           </section>
           <div class="sections">
@@ -161,6 +157,7 @@
                 <div class="config-main">
                   <div class="config-line">
                     <span class="config-name">{{ c.name || `${c.provider}-${c.service_type}` }}</span>
+                    <span class="tag mono">{{ protocolLabel(c.protocol) }}</span>
                     <span :class="['tag', c.api_key ? 'tag-success' : 'tag-error']">{{ c.api_key ? t('settings.ai.hasKey') : t('settings.ai.noKey') }}</span>
                     <span v-if="!c.is_active" class="tag">{{ t('settings.common.disabled') }}</span>
                   </div>
@@ -177,7 +174,11 @@
                   </div>
                   <div class="config-sub mono truncate">{{ c.base_url || t('settings.ai.noBaseUrl') }}</div>
                 </div>
-                <button v-if="st.type === 'text'" class="btn btn-ghost btn-sm" @click="testExistingCfg(c)">{{ t('settings.ai.test') }}</button>
+                <div class="cfg-order" :title="t('settings.ai.priorityHint')">
+                  <button class="btn btn-ghost btn-icon btn-sm" :disabled="cfgIndex(st.type, c) <= 0" @click="moveCfg(st.type, c, -1)" :title="t('settings.ai.priorityUp')"><ArrowUp :size="12" /></button>
+                  <button class="btn btn-ghost btn-icon btn-sm" :disabled="cfgIndex(st.type, c) >= byType(st.type).length - 1" @click="moveCfg(st.type, c, 1)" :title="t('settings.ai.priorityDown')"><ArrowDown :size="12" /></button>
+                </div>
+                <button class="btn btn-ghost btn-sm" @click="testExistingCfg(c)">{{ t('settings.ai.test') }}</button>
                 <label class="config-switch">
                   <input type="checkbox" class="sr-only" :checked="c.is_active" @change="toggleCfg(c)">
                   <span class="switch" :class="{ on: c.is_active }"></span>
@@ -271,6 +272,121 @@
             </div>
             <p class="config-empty">{{ t('settings.storage.note') }}</p>
             <p v-if="!isDesktopMode" class="config-empty">{{ t('settings.storage.serverNote') }}</p>
+          </section>
+        </div>
+
+        <!-- ===== 公网访问（内网穿透 / 反代） ===== -->
+        <div v-else-if="tab === 'network'" class="settings-scroll">
+          <div class="settings-head">
+            <h2 class="settings-title">{{ t('settings.tunnel.title') }}</h2>
+            <p class="settings-desc">{{ t('settings.tunnel.desc') }}</p>
+          </div>
+
+          <!-- 公网媒体地址（仅服务器部署：桌面版公网入口由内置隧道托管） -->
+          <section v-if="!isDesktopMode" class="card svc-group">
+            <div class="svc-group-head">
+              <div class="svc-group-heading">
+                <span class="svc-group-title">{{ t('settings.tunnel.manualUrl') }}</span>
+                <div class="svc-group-sub">{{ t('settings.tunnel.manualUrlSub') }}</div>
+              </div>
+              <button class="btn btn-primary btn-sm ml-auto" :disabled="manualSaving" @click="saveManualUrl">
+                <Check :size="13" /> {{ t('settings.tunnel.saveManual') }}
+              </button>
+            </div>
+            <div class="config-row">
+              <div class="provider-badge" style="background:var(--accent-bg);color:var(--accent)"><Globe :size="15" /></div>
+              <div class="config-main">
+                <div class="config-line">
+                  <span class="config-name">{{ t('settings.tunnel.manualUrl') }}</span>
+                  <span v-if="manualFromEnv" class="tag">{{ t('settings.tunnel.fromEnv') }}</span>
+                </div>
+                <input v-model="manualUrl" class="input" :placeholder="t('settings.tunnel.manualUrlPlaceholder')" />
+                <div class="config-sub">{{ t('settings.tunnel.manualHint') }}</div>
+              </div>
+            </div>
+          </section>
+
+          <!-- 内网穿透（桌面版内置 cloudflared） -->
+          <section v-if="isDesktopMode" class="card svc-group">
+            <div class="svc-group-head">
+              <div class="svc-group-heading">
+                <span class="svc-group-title">{{ t('settings.tunnel.manageTitle') }}</span>
+                <div class="svc-group-sub">{{ t('settings.tunnel.manageSub') }}</div>
+              </div>
+              <div class="ml-auto" style="display:flex;gap:8px">
+                <button
+                  v-if="tunnelState?.status === 'running' || tunnelState?.status === 'starting'"
+                  class="btn btn-sm" :disabled="tunnelBusy" @click="stopTunnel"
+                >{{ t('settings.tunnel.stop') }}</button>
+                <button v-else class="btn btn-primary btn-sm" :disabled="tunnelBusy" @click="startTunnel">
+                  <Radio :size="13" /> {{ t('settings.tunnel.start') }}
+                </button>
+              </div>
+            </div>
+            <div class="config-row">
+              <div class="provider-badge" style="background:var(--accent-bg);color:var(--accent)"><Waypoints :size="15" /></div>
+              <div class="config-main">
+                <div class="config-line">
+                  <span class="config-name">{{ t('settings.tunnel.status') }}</span>
+                  <span
+                    class="tag"
+                    :style="tunnelState?.status === 'running' ? 'color:var(--ok,#2e7d32)' : (tunnelState?.status === 'error' || tunnelState?.status === 'unavailable') ? 'color:var(--danger,#e5484d)' : ''"
+                  >{{ tunnelStatusText }}</span>
+                </div>
+                <div v-if="tunnelState?.publicUrl" class="config-sub mono truncate">{{ tunnelState.publicUrl }}</div>
+                <div v-if="tunnelState?.error" class="config-sub" style="color:var(--danger,#e5484d)">{{ tunnelState.error }}</div>
+              </div>
+              <button class="btn btn-ghost btn-sm" :disabled="testing" @click="testTunnel">{{ testing ? t('settings.tunnel.testRunning') : t('settings.tunnel.test') }}</button>
+            </div>
+
+            <div class="config-row">
+              <div class="provider-badge style-badge"><Waypoints :size="15" /></div>
+              <div class="config-main">
+                <div class="config-line"><span class="config-name">{{ t('settings.tunnel.mode') }}</span></div>
+                <div class="lang-picker">
+                  <button type="button" :class="['lang-option', { on: tunnelForm.mode === 'quick' }]" @click="setTunnelMode('quick')">{{ t('settings.tunnel.modeQuick') }}</button>
+                  <button type="button" :class="['lang-option', { on: tunnelForm.mode === 'token' }]" @click="setTunnelMode('token')">{{ t('settings.tunnel.modeToken') }}</button>
+                </div>
+                <div class="config-sub">{{ tunnelForm.mode === 'quick' ? t('settings.tunnel.modeQuickSub') : t('settings.tunnel.modeTokenSub') }}</div>
+              </div>
+            </div>
+
+            <div v-if="tunnelForm.mode === 'token'" class="config-row">
+              <div class="provider-badge style-badge"><KeyRound :size="15" /></div>
+              <div class="config-main">
+                <div class="config-line"><span class="config-name">{{ t('settings.tunnel.token') }}</span></div>
+                <input v-model="tunnelForm.token" class="input" type="password" :placeholder="t('settings.tunnel.tokenPlaceholder')" />
+                <input v-model="tunnelForm.publicUrl" class="input" :placeholder="t('settings.tunnel.publicUrlPlaceholder')" />
+                <div class="config-sub">{{ t('settings.tunnel.tokenHint') }}</div>
+              </div>
+            </div>
+
+            <div class="config-row">
+              <div class="provider-badge style-badge"><Gauge :size="15" /></div>
+              <div class="config-main">
+                <div class="config-line"><span class="config-name">{{ t('settings.tunnel.backendPort') }}</span></div>
+                <input v-model.number="tunnelForm.backendPort" class="input" type="number" min="1024" max="65535" />
+                <div class="config-sub">{{ t('settings.tunnel.backendPortSub') }}</div>
+              </div>
+            </div>
+
+            <div class="config-row">
+              <div class="provider-badge style-badge"><Rocket :size="15" /></div>
+              <div class="config-main">
+                <div class="config-line"><span class="config-name">{{ t('settings.tunnel.autoStart') }}</span></div>
+                <div class="config-sub">{{ t('settings.tunnel.autoStartSub') }}</div>
+              </div>
+              <label class="config-switch">
+                <input type="checkbox" class="sr-only" :checked="tunnelForm.autoStart" @change="toggleAutoStart" />
+                <span class="switch" :class="{ on: tunnelForm.autoStart }"></span>
+              </label>
+            </div>
+
+            <details class="tunnel-log">
+              <summary class="config-sub">{{ t('settings.tunnel.log') }}</summary>
+              <pre v-if="tunnelState?.log?.length" class="mono">{{ tunnelState.log.join('\n') }}</pre>
+            </details>
+            <p class="config-empty" style="color:var(--danger,#e5484d)">{{ t('settings.tunnel.risk') }}</p>
           </section>
         </div>
 
@@ -496,29 +612,44 @@
         <div class="dialog-body config-dialog-body">
           <div class="preset-picker">
             <button
-              v-for="preset in presetsByType(cfgForm.service_type)"
-              :key="`${cfgForm.service_type}-${preset.provider}`"
+              v-for="v in vendorChips(cfgForm.service_type)"
+              :key="`${cfgForm.service_type}-${v.id}`"
               type="button"
-              class="preset-pill"
-              @click="applyProviderPreset(cfgForm.service_type, preset.provider)"
+              :class="['preset-pill', { on: cfgForm.provider === v.id }]"
+              @click="applyVendorPreset(v.id)"
             >
-              {{ preset.label }}
+              {{ v.label }}
             </button>
           </div>
-          <label class="field">
-            <span class="field-label">{{ t('settings.cfg.name') }}</span>
-            <input v-model="cfgForm.name" class="input" :placeholder="t('settings.cfg.namePlaceholder')" />
-          </label>
-          <label class="field"><span class="field-label">{{ t('settings.cfg.provider') }}</span>
-            <BaseSelect v-model="cfgForm.provider" :options="providerSelectOptions" :placeholder="t('settings.cfg.providerPlaceholder')" searchable />
-          </label>
-          <label class="field">
-            <span class="field-label">{{ t('settings.cfg.priority') }}</span>
-            <input v-model.number="cfgForm.priority" class="input" type="number" min="0" max="999" />
-            <span class="field-hint">{{ t('settings.cfg.priorityHint') }}</span>
-          </label>
-          <label class="field"><span class="field-label">API Key</span><input v-model="cfgForm.api_key" class="input" type="password" placeholder="sk-..." /></label>
-          <label class="field"><span class="field-label">Base URL</span><input v-model="cfgForm.base_url" class="input" placeholder="https://..." /></label>
+          <div class="field-grid">
+            <label class="field">
+              <span class="field-label">{{ t('settings.cfg.name') }}</span>
+              <input v-model="cfgForm.name" class="input" :placeholder="t('settings.cfg.namePlaceholder')" />
+            </label>
+            <label class="field">
+              <span class="field-label">{{ t('settings.cfg.provider') }}</span>
+              <input v-model="cfgForm.provider" class="input" :placeholder="t('settings.cfg.providerPlaceholder')" />
+              <span class="field-hint">{{ t('settings.cfg.providerHint') }}</span>
+            </label>
+            <label class="field">
+              <span class="field-label">{{ t('settings.cfg.protocol') }}</span>
+              <BaseSelect v-model="cfgForm.protocol" :options="protocolOptions" :placeholder="t('settings.cfg.protocolPlaceholder')" />
+              <span class="field-hint">{{ t('settings.cfg.protocolHint') }}</span>
+            </label>
+            <label class="field">
+              <span class="field-label">{{ t('settings.cfg.priority') }}</span>
+              <input v-model.number="cfgForm.priority" class="input" type="number" min="0" max="999" />
+              <span class="field-hint">{{ t('settings.cfg.priorityHint') }}</span>
+            </label>
+            <label class="field">
+              <span class="field-label">API Key</span>
+              <input v-model="cfgForm.api_key" class="input" type="password" placeholder="sk-..." />
+            </label>
+            <label class="field">
+              <span class="field-label">Base URL</span>
+              <input v-model="cfgForm.base_url" class="input" placeholder="https://..." />
+            </label>
+          </div>
           <div class="field">
             <span class="field-label">{{ t('settings.cfg.models') }}</span>
             <div v-if="cfgForm.models.length" class="model-chips">
@@ -539,6 +670,22 @@
                 @paste="onModelPaste"
               />
               <button type="button" class="btn btn-sm" :disabled="!modelInput.trim()" @click="addModel">{{ t('common.add') }}</button>
+              <button
+                v-if="canListModels"
+                type="button" class="btn btn-sm" :disabled="modelsLoading"
+                :title="t('settings.cfg.fetchModelsHint')" @click="fetchRemoteModels"
+              >
+                <Loader2 v-if="modelsLoading" :size="12" class="animate-spin" />
+                <Download v-else :size="12" />
+                {{ t('settings.cfg.fetchModels') }}
+              </button>
+            </div>
+            <div v-if="remoteModels.length" class="remote-models">
+              <button
+                v-for="m in remoteModels" :key="m" type="button"
+                :class="['remote-model', { on: cfgForm.models.includes(m) }]"
+                @click="toggleRemoteModel(m)"
+              >{{ m }}</button>
             </div>
             <span class="field-hint">{{ t('settings.cfg.modelsHint') }}</span>
           </div>
@@ -684,12 +831,12 @@
 </template>
 
 <script setup>
-import { Plus, Pencil, Trash2, FileText, ChevronDown, Check, Loader2, Bot, Cpu, Sparkles, Palette, ExternalLink, Star, HardDrive, Database, RefreshCw, Download, Languages, SunMoon, X } from 'lucide-vue-next'
+import { Plus, Pencil, Trash2, FileText, ChevronDown, Check, Loader2, Bot, Cpu, Sparkles, Palette, ExternalLink, Star, HardDrive, Database, RefreshCw, Download, Languages, SunMoon, X, ArrowUp, ArrowDown, Globe, Radio, Waypoints, KeyRound, Gauge, Rocket } from 'lucide-vue-next'
 import BaseSelect from '~/components/BaseSelect.vue'
 import { toast } from 'vue-sonner'
 import { toastError } from '~/composables/useToast'
 import { useI18n } from 'vue-i18n'
-import { aiConfigAPI, promptAPI, skillsAPI, storageAPI, stylePresetAPI, settingsAPI, serverUpdateAPI } from '~/composables/useApi'
+import { aiConfigAPI, aiProvidersAPI, promptAPI, skillsAPI, storageAPI, stylePresetAPI, settingsAPI, serverUpdateAPI } from '~/composables/useApi'
 import { useDesktopBridge } from '~/composables/useDesktopBridge'
 import { useMigrateState } from '~/composables/useMigrateState'
 import { useTheme } from '~/composables/useTheme'
@@ -707,6 +854,7 @@ const baseTabs = computed(() => [
   { id: 'styles', label: t('settings.tabs.styles'), icon: Palette },
   { id: 'agents', label: t('settings.tabs.agents'), icon: Bot },
   { id: 'storage', label: t('settings.tabs.storage'), icon: HardDrive },
+  { id: 'network', label: t('settings.tabs.network'), icon: Globe },
   { id: 'about', label: t('settings.tabs.about'), icon: RefreshCw },
 ])
 
@@ -716,12 +864,11 @@ const cfgDialog = ref(false)
 const cfgEditId = ref(null)
 const cfgTesting = ref(false)
 const cfgTestResult = ref(null)
-const huobaoApiKey = ref('')
-const huobaoSaving = ref(false)
-// 火宝节点选择：默认跟随界面语言（中文→国内 .cn，其他→国外 .com），一键配置与取 Key 链接共用
-const huobaoRegion = ref(locale.value?.startsWith('zh') ? 'cn' : 'com')
-const huobaoSiteUrl = computed(() => `https://api.firemux.${huobaoRegion.value}`)
-const cfgForm = reactive({ name: '', provider: '', api_key: '', base_url: '', models: [], service_type: 'text', priority: 0, temperature: '' })
+const quickApiKey = ref('')
+const quickSaving = ref(false)
+// 快捷配置指向 Agnes 开放平台（与后端 provider-catalog 的 preset 保持一致）
+const quickSiteUrl = 'https://platform.agnes-ai.cn'
+const cfgForm = reactive({ name: '', provider: '', protocol: '', api_key: '', base_url: '', models: [], service_type: 'text', priority: 0, temperature: '' })
 // 模型标签编辑器：首位即默认模型；输入框支持回车添加、逗号/换行批量粘贴
 const modelInput = ref('')
 function addModel() {
@@ -749,56 +896,75 @@ const serviceTypes = computed(() => [
   { type: 'image', label: t('common.serviceType.image') },
   { type: 'video', label: t('common.serviceType.video') },
 ])
-const providers = ['gemini', 'openai', 'volcengine', 'minimax', 'aliyun']
-const providerSelectOptions = computed(() => providers.map(p => ({ label: p, value: p })))
+// ===== 厂商 / 协议目录 =====
+// 后端 /ai-providers 下发：厂商条目只影响展示、图标与日志，真正决定请求形态的是 protocol
+const catalog = reactive({ vendors: [], protocols: {}, modelListProtocols: [], quickConfigs: [] })
+async function loadCatalog() {
+  try {
+    const data = await aiProvidersAPI.catalog()
+    catalog.protocols = data?.protocols || {}
+    catalog.vendors = Array.isArray(data?.vendors) ? data.vendors : []
+    catalog.modelListProtocols = Array.isArray(data?.model_list_protocols) ? data.model_list_protocols : []
+    catalog.quickConfigs = Array.isArray(data?.quick_configs) ? data.quick_configs : []
+  } catch (e) {
+    toastError(e)
+  }
+}
+const protocolLabelMap = computed(() => {
+  const map = {}
+  for (const list of Object.values(catalog.protocols || {})) {
+    for (const p of list || []) map[p.value] = p.label || p.value
+  }
+  return map
+})
+function protocolLabel(p) { return protocolLabelMap.value[(p || '').toLowerCase()] || p || '—' }
+function vendorLabel(id) { return catalog.vendors.find(v => v.id === id)?.label || id }
+function vendorService(id, type) { return catalog.vendors.find(v => v.id === id)?.services?.[type] || null }
+// 某服务类型可选的厂商（含末尾「自定义」）；目录未加载时退化为单条自定义入口
+function vendorChips(type) {
+  const list = catalog.vendors.filter(v => v.services?.[type]).map(v => ({ id: v.id, label: v.label }))
+  return list.length ? list : [{ id: 'custom', label: t('settings.cfg.customVendor') }]
+}
+const protocolOptions = computed(() => (catalog.protocols?.[cfgForm.service_type] || []).map(p => ({ label: p.label || p.value, value: p.value })))
+const canListModels = computed(() => (catalog.modelListProtocols || []).includes((cfgForm.protocol || '').toLowerCase()))
+const quickConfigs = computed(() => catalog.quickConfigs)
 const serviceMeta = computed(() => ({
   text: { label: t('common.serviceType.text'), desc: t('settings.ai.meta.text') },
   image: { label: t('common.serviceType.image'), desc: t('settings.ai.meta.image') },
   video: { label: t('common.serviceType.video'), desc: t('settings.ai.meta.video') },
 }))
-const providerPresets = {
-  text: {
-    gemini: { label: 'Gemini 官方', baseUrl: 'https://generativelanguage.googleapis.com', models: ['gemini-3.8-flash', 'gemini-3.1-pro-preview', 'gemini-3-flash-preview'] },
-    openai: { label: 'OpenAI 官方', baseUrl: 'https://api.openai.com', models: ['deepseek-v4-pro', 'gpt-5.6-terra'] },
-  },
-  image: {
-    gemini: { label: 'Gemini 官方', baseUrl: 'https://generativelanguage.googleapis.com', models: ['gemini-3-pro-image', 'gemini-3.1-flash-image'] },
-    openai: { label: 'OpenAI 官方', baseUrl: 'https://api.openai.com', models: ['gpt-image-2'] },
-  },
-  video: {
-    aliyun: { label: '阿里云百炼 Wan 3.0', baseUrl: 'https://{WorkspaceId}.cn-beijing.maas.aliyuncs.com', models: ['wan3.0-video', 'wan3.0-video-prime'] },
-    volcengine: { label: 'Seedance 2.0 官方', baseUrl: 'https://ark.cn-beijing.volces.com', models: ['doubao-seedance-2-0-mini-260615', 'doubao-seedance-2-0-fast-260128', 'doubao-seedance-2-0-260128'] },
-    minimax: { label: 'MiniMax H3 官方', baseUrl: 'https://api.minimaxi.com', models: ['MiniMax-H3'] },
-  },
-}
-const huobaoQuickConfigs = computed(() => {
-  const base = huobaoSiteUrl.value
-  return [
-    { service_type: 'text', provider: 'gemini', name: '火宝文本服务 · Gemini', base_url: base, model: ['gemini-3.8-flash', 'gemini-3.1-pro-preview', 'gemini-3-flash-preview'], priority: 101 },
-    { service_type: 'text', provider: 'openai', name: '火宝文本服务 · OpenAI', base_url: base, model: ['deepseek-v4-pro', 'deepseek-v4-flash', 'gpt-5.6-terra'], priority: 100 },
-    { service_type: 'image', provider: 'openai', name: '火宝图片服务 · OpenAI', base_url: base, model: ['gpt-image-2'], priority: 99 },
-    { service_type: 'image', provider: 'gemini', name: '火宝图片服务 · Gemini', base_url: base, model: ['gemini-3-pro-image', 'gemini-3.1-flash-image'], priority: 97 },
-    { service_type: 'video', provider: 'aliyun', name: '火宝视频服务 · Wan 3.0', base_url: `${base}/qwen`, model: ['wan3.0-video', 'wan3.0-video-prime'], priority: 97 },
-    { service_type: 'video', provider: 'volcengine', name: '火宝视频服务 · Seedance', base_url: `${base}/volcengine`, model: ['doubao-seedance-2-0-mini-260615', 'doubao-seedance-2-0-fast-260128', 'doubao-seedance-2-0-260128'], priority: 96 },
-    { service_type: 'video', provider: 'minimax', name: '火宝视频服务 · MiniMax', base_url: `${base}/minimax`, model: ['MiniMax-H3'], priority: 98 },
-  ]
-})
-
 function byType(t) { return cfgs.value.filter(c => c.service_type === t) }
 function countActive(t) { return byType(t).filter(c => c.is_active).length }
 function fmtModel(m) { return Array.isArray(m) ? m.join(', ') : m || '—' }
-function presetsByType(type) {
-  const group = providerPresets[type] || {}
-  return Object.entries(group).map(([provider, preset]) => ({ provider, ...preset }))
+// 优先级排序辅助：cfgs 已按 priority 降序返回，上下移即与相邻条目交换优先级
+function cfgIndex(type, c) { return byType(type).findIndex(x => x.id === c.id) }
+async function moveCfg(type, c, dir) {
+  const list = byType(type)
+  const i = list.findIndex(x => x.id === c.id)
+  const j = i + dir
+  if (i < 0 || j < 0 || j >= list.length) return
+  const other = list[j]
+  const myP = c.priority || 0
+  const otherP = other.priority || 0
+  // 交换优先级；两值相同时向上顶一格 / 向下压一格，保证顺序真实生效
+  const nextMine = myP === otherP ? (dir < 0 ? myP + 1 : Math.max(0, myP - 1)) : otherP
+  const nextOther = myP === otherP ? (dir < 0 ? otherP : otherP + 1) : myP
+  try {
+    await Promise.all([
+      aiConfigAPI.update(c.id, { priority: nextMine }),
+      aiConfigAPI.update(other.id, { priority: nextOther }),
+    ])
+    await loadCfgs()
+  } catch (e) { toastError(e) }
 }
-function applyProviderPreset(type, provider) {
-  const preset = providerPresets[type]?.[provider]
-  if (!preset) return
-  cfgForm.provider = provider
-  cfgForm.base_url = preset.baseUrl
-  cfgForm.models = [...preset.models]
-  // 配置名持久化进 DB：用 provider 英文 + 服务类型英文标识拼，不随界面语言漂移
-  cfgForm.name = `${preset.label}-${type}`
+// 厂商预设填充：只预填展示字段（名称/协议/地址/推荐模型），厂商名可随意改
+function applyVendorPreset(vendorId) {
+  const svc = vendorService(vendorId, cfgForm.service_type) || {}
+  cfgForm.provider = vendorId === 'custom' ? '' : vendorId
+  cfgForm.protocol = svc.protocol || ''
+  cfgForm.base_url = svc.base_url || ''
+  cfgForm.models = [...(svc.models || [])]
+  cfgForm.name = vendorId === 'custom' ? '' : `${vendorLabel(vendorId)}-${cfgForm.service_type}`
 }
 
 async function loadCfgs() { try { cfgs.value = await aiConfigAPI.list() } catch (e) { toastError(e) } }
@@ -837,40 +1003,51 @@ async function setDefaultModel(type, c, m) {
 }
 async function toggleCfg(c) { await aiConfigAPI.update(c.id, { is_active: !c.is_active }); loadCfgs() }
 async function delCfg(id) { await aiConfigAPI.del(id); toast.success(t('index.deleted')); loadCfgs() }
-async function applyHuobaoQuickConfig() {
-  const apiKey = huobaoApiKey.value.trim()
+async function applyQuickConfigs() {
+  const apiKey = quickApiKey.value.trim()
   if (!apiKey) { toast.warning(t('settings.ai.apiKeyRequired')); return }
-  huobaoSaving.value = true
+  quickSaving.value = true
   try {
-    for (const preset of huobaoQuickConfigs.value) {
-      const payload = { ...preset, api_key: apiKey }
+    for (const preset of quickConfigs.value) {
+      const payload = {
+        service_type: preset.service_type,
+        provider: preset.provider,
+        protocol: preset.protocol,
+        name: preset.name,
+        base_url: preset.base_url,
+        model: [...(preset.model || [])],
+        priority: preset.priority,
+        api_key: apiKey,
+      }
       const existing = cfgs.value.find(c => c.name === preset.name || (c.service_type === preset.service_type && c.provider === preset.provider && c.base_url === preset.base_url))
       if (existing) await aiConfigAPI.update(existing.id, payload)
       else await aiConfigAPI.create(payload)
     }
     toast.success(t('settings.ai.quickApplied'))
-    huobaoApiKey.value = ''
+    quickApiKey.value = ''
     await loadCfgs()
   } catch (e) {
     toastError(e)
   } finally {
-    huobaoSaving.value = false
+    quickSaving.value = false
   }
 }
-function startAddCfg(t) {
+function startAddCfg(t, vendorId) {
   cfgEditId.value = null
   cfgTestResult.value = null
-  Object.assign(cfgForm, { name: '', provider: '', api_key: '', base_url: '', models: [], service_type: t, priority: 0, temperature: '' })
-  const firstPreset = presetsByType(t)[0]
-  if (firstPreset) applyProviderPreset(t, firstPreset.provider)
+  remoteModels.value = []
+  Object.assign(cfgForm, { name: '', provider: '', protocol: '', api_key: '', base_url: '', models: [], service_type: t, priority: 0, temperature: '' })
+  if (vendorId) applyVendorPreset(vendorId)
   cfgDialog.value = true
 }
 function startEditCfg(c) {
   cfgEditId.value = c.id
   cfgTestResult.value = null
+  remoteModels.value = []
   Object.assign(cfgForm, {
     name: c.name || '',
     provider: c.provider,
+    protocol: c.protocol || '',
     api_key: c.api_key || '',
     base_url: c.base_url || '',
     models: Array.isArray(c.model) ? [...c.model] : String(c.model || '').split(',').map(s => s.trim()).filter(Boolean),
@@ -896,6 +1073,7 @@ async function testDraftCfg() {
   await testCfgPayload({
     service_type: cfgForm.service_type,
     provider: cfgForm.provider,
+    protocol: cfgForm.protocol,
     api_key: cfgForm.api_key,
     base_url: cfgForm.base_url,
     model: [...cfgForm.models],
@@ -906,6 +1084,7 @@ async function testExistingCfg(c) {
   await testCfgPayload({
     service_type: c.service_type,
     provider: c.provider,
+    protocol: c.protocol || '',
     api_key: c.api_key || '',
     base_url: c.base_url || '',
     model: Array.isArray(c.model) ? c.model : [],
@@ -913,16 +1092,49 @@ async function testExistingCfg(c) {
 }
 async function saveCfg() {
   if (!cfgForm.provider) { toast.warning(t('settings.cfg.providerRequired')); return }
+  if (!cfgForm.protocol) { toast.warning(t('settings.cfg.protocolRequired')); return }
   const models = [...cfgForm.models]
   const temperature = cfgForm.temperature === '' || cfgForm.temperature === null ? null : Number(cfgForm.temperature)
   if (temperature !== null && (!Number.isFinite(temperature) || temperature < 0 || temperature > 2)) {
     toast.warning(t('settings.cfg.tempInvalid')); return
   }
   try {
-    if (cfgEditId.value) await aiConfigAPI.update(cfgEditId.value, { name: cfgForm.name, provider: cfgForm.provider, api_key: cfgForm.api_key, base_url: cfgForm.base_url, model: models, priority: cfgForm.priority, temperature })
-    else await aiConfigAPI.create({ service_type: cfgForm.service_type, provider: cfgForm.provider, name: cfgForm.name || `${cfgForm.provider}-${cfgForm.service_type}`, api_key: cfgForm.api_key, base_url: cfgForm.base_url, model: models, priority: cfgForm.priority, temperature })
+    if (cfgEditId.value) await aiConfigAPI.update(cfgEditId.value, { name: cfgForm.name, provider: cfgForm.provider, protocol: cfgForm.protocol, api_key: cfgForm.api_key, base_url: cfgForm.base_url, model: models, priority: cfgForm.priority, temperature })
+    else await aiConfigAPI.create({ service_type: cfgForm.service_type, provider: cfgForm.provider, protocol: cfgForm.protocol, name: cfgForm.name || `${cfgForm.provider}-${cfgForm.service_type}`, api_key: cfgForm.api_key, base_url: cfgForm.base_url, model: models, priority: cfgForm.priority, temperature })
     cfgDialog.value = false; toast.success(t('common.saved')); loadCfgs()
   } catch (e) { toastError(e) }
+}
+
+// ===== 远端模型列表拉取 =====
+const remoteModels = ref([])
+const modelsLoading = ref(false)
+async function fetchRemoteModels() {
+  if (!canListModels.value) return
+  modelsLoading.value = true
+  try {
+    const res = await aiConfigAPI.models({
+      service_type: cfgForm.service_type,
+      protocol: cfgForm.protocol,
+      api_key: cfgForm.api_key,
+      base_url: cfgForm.base_url,
+    })
+    if (!res?.ok) {
+      remoteModels.value = []
+      toast.error(res?.message || t('settings.cfg.fetchModelsEmpty'))
+      return
+    }
+    remoteModels.value = Array.isArray(res.models) ? res.models : []
+    if (!remoteModels.value.length) toast.warning(t('settings.cfg.fetchModelsEmpty'))
+  } catch (e) {
+    toastError(e)
+  } finally {
+    modelsLoading.value = false
+  }
+}
+function toggleRemoteModel(m) {
+  const i = cfgForm.models.indexOf(m)
+  if (i >= 0) cfgForm.models.splice(i, 1)
+  else cfgForm.models.push(m)
 }
 
 // ===== Agent Configs =====
@@ -1047,6 +1259,7 @@ async function setContentLanguage(lang) {
   await confirmUnifiedLanguage(lang)
 }
 onMounted(loadContentLanguage)
+onMounted(() => { if (!isDesktopMode.value) loadPublicMedia(); loadTunnel() })
 
 // agent type 用下划线（script_rewriter），skill 目录按 Mastra 规范用连字符（script-rewriter）
 const skillDirOf = (type) => type.replace(/_/g, '-')
@@ -1223,7 +1436,7 @@ async function saveStyle() {
   } catch (e) { toastError(e) }
 }
 
-onMounted(() => { loadCfgs(); loadAgents(); loadAllSkills(); loadAgentPrompt(selectedAgent.value); loadStylePresets() })
+onMounted(() => { loadCatalog(); loadCfgs(); loadAgents(); loadAllSkills(); loadAgentPrompt(selectedAgent.value); loadStylePresets() })
 
 // ===== 应用内引导（设置页）：快捷配置 + 手动模板两步 =====
 const SETTINGS_TOUR = [
@@ -1244,7 +1457,116 @@ const migrateTargetFree = ref(null)
 const migrateFiles = ref(true)
 const migrating = ref(false)
 
-const isDesktopMode = computed(() => storageInfo.value?.mode === 'desktop' && !!desktopBridge)
+const isDesktopMode = computed(() => !!desktopBridge)
+
+// ===== 公网访问（内网穿透 / 反代） =====
+const publicMediaUrl = ref(null)
+const manualFromEnv = ref(false)
+const manualUrl = ref('')
+const manualSaving = ref(false)
+const tunnelState = ref(null)
+const tunnelForm = reactive({ autoStart: false, mode: 'quick', token: '', publicUrl: '', binaryPath: '', backendPort: 5679 })
+const tunnelBusy = ref(false)
+const testing = ref(false)
+
+const tunnelStatusText = computed(() => {
+  switch (tunnelState.value?.status) {
+    case 'running': return t('settings.tunnel.statusRunning')
+    case 'starting': return t('settings.tunnel.statusStarting')
+    case 'error': return t('settings.tunnel.statusError')
+    case 'unavailable': return t('settings.tunnel.statusUnavailable')
+    default: return t('settings.tunnel.statusStopped')
+  }
+})
+
+async function loadPublicMedia() {
+  try {
+    const res = await settingsAPI.publicMediaBaseUrl()
+    publicMediaUrl.value = res.url
+    manualFromEnv.value = !!res.fromEnv && !res.url
+    manualUrl.value = res.url || ''
+  } catch { /* 设置页不阻塞 */ }
+}
+
+async function saveManualUrl() {
+  const value = manualUrl.value.trim()
+  if (value && !/^https?:\/\//i.test(value)) {
+    toast.error(t('settings.tunnel.invalidUrl'))
+    return
+  }
+  manualSaving.value = true
+  try {
+    const res = await settingsAPI.setPublicMediaBaseUrl(value)
+    publicMediaUrl.value = res.url
+    manualFromEnv.value = false
+    toast.success(value ? t('settings.tunnel.manualSaved') : t('settings.tunnel.manualCleared'))
+  } catch (e) {
+    toastError(e)
+  } finally {
+    manualSaving.value = false
+  }
+}
+
+async function loadTunnel() {
+  if (!desktopBridge) return
+  tunnelState.value = await desktopBridge.getTunnelState()
+  const cfg = await desktopBridge.getTunnelConfig()
+  Object.assign(tunnelForm, cfg)
+  desktopBridge.onTunnelState((state) => { tunnelState.value = state })
+}
+
+async function persistTunnelConfig() {
+  if (!desktopBridge) return
+  const cfg = await desktopBridge.setTunnelConfig({ ...tunnelForm })
+  Object.assign(tunnelForm, cfg)
+}
+
+function setTunnelMode(mode) {
+  tunnelForm.mode = mode
+  void persistTunnelConfig()
+}
+
+function toggleAutoStart() {
+  tunnelForm.autoStart = !tunnelForm.autoStart
+  void persistTunnelConfig()
+}
+
+async function startTunnel() {
+  if (!desktopBridge) return
+  tunnelBusy.value = true
+  try {
+    await persistTunnelConfig()
+    tunnelState.value = await desktopBridge.startTunnel()
+  } finally {
+    tunnelBusy.value = false
+  }
+}
+
+async function stopTunnel() {
+  if (!desktopBridge) return
+  tunnelBusy.value = true
+  try {
+    tunnelState.value = await desktopBridge.stopTunnel()
+  } finally {
+    tunnelBusy.value = false
+  }
+}
+
+/** 连通性自检：直接 GET 公网地址的 health 端点，验证上游能回源 */
+async function testTunnel() {
+  const base = (tunnelState.value?.publicUrl || publicMediaUrl.value || '').replace(/\/+$/, '')
+  if (!base) { toast.error(t('settings.tunnel.testNoUrl')); return }
+  testing.value = true
+  try {
+    const resp = await fetch(`${base}/api/v1/health`, { signal: AbortSignal.timeout(8000) })
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+    toast.success(t('settings.tunnel.testOk'))
+  } catch (e) {
+    toast.error(t('settings.tunnel.testFail', { msg: e?.message || String(e) }))
+  } finally {
+    testing.value = false
+  }
+}
 
 let usagePollTimer = null
 
@@ -1438,20 +1760,20 @@ onBeforeUnmount(stopUsagePoll)
 .quick-card-head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
 .setup-title { font-size: 15px; font-weight: 700; color: var(--text-0); }
 .setup-desc { font-size: 12.5px; color: var(--text-2); margin-bottom: 14px; }
-.huobao-site-link {
+.quick-site-link {
   display: inline-flex; align-items: center; gap: 3px;
   margin-left: 6px;
   color: var(--accent); text-decoration: none;
   font-weight: 600; white-space: nowrap;
 }
-.huobao-site-link:hover { text-decoration: underline; }
-.huobao-quick-row {
+.quick-site-link:hover { text-decoration: underline; }
+.quick-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 10px;
   align-items: center;
 }
-.huobao-quick-models {
+.quick-models {
   margin-top: 14px;
   display: flex;
   flex-direction: column;
@@ -1485,6 +1807,15 @@ onBeforeUnmount(stopUsagePoll)
   letter-spacing: 0.02em;
 }
 .hqm-provider-icon { width: 11px; height: 11px; object-fit: contain; border-radius: 2px; }
+.provider-initial { font-size: 9px; font-weight: 700; }
+.hqm-protocol {
+  padding: 0 5px;
+  border-radius: 4px;
+  background: var(--overlay-track);
+  color: var(--text-2);
+  font-size: 9px;
+  font-weight: 600;
+}
 .hqm-models {
   display: flex;
   flex-wrap: wrap;
@@ -1559,7 +1890,6 @@ onBeforeUnmount(stopUsagePoll)
   margin-bottom: 14px;
 }
 .setup-panel-head.compact { margin-bottom: 12px; }
-.template-row { display: flex; flex-wrap: wrap; gap: 8px; }
 .template-type-chip {
   min-height: var(--button-height-sm);
   padding: 0 14px;
@@ -1575,6 +1905,85 @@ onBeforeUnmount(stopUsagePoll)
 }
 .template-type-chip:hover { background: var(--button-bg-hover); color: var(--text-0); }
 .template-type-chip:focus-visible { outline: none; box-shadow: 0 0 0 3.5px var(--button-focus); }
+
+/* 按服务类型分组的厂商模板块 */
+.template-row { display: flex; flex-direction: column; gap: 10px; }
+.template-type-block { display: flex; align-items: baseline; gap: 12px; }
+.template-type-label {
+  flex-shrink: 0;
+  width: 44px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-2);
+}
+.template-vendor-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.template-vendor-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: var(--button-height-sm);
+  padding: 0 14px;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: var(--button-bg);
+  color: var(--text-1);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  transition: all 0.16s var(--ease-out);
+}
+.template-vendor-chip:hover { background: var(--button-bg-hover); color: var(--text-0); }
+.template-vendor-chip:focus-visible { outline: none; box-shadow: 0 0 0 3.5px var(--button-focus); }
+.template-vendor-icon { width: 13px; height: 13px; object-fit: contain; border-radius: 3px; }
+
+/* 协议 / 厂商双列表单栅格（配置弹窗） */
+.field-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 14px;
+}
+@media (max-width: 640px) { .field-grid { grid-template-columns: 1fr; } }
+
+/* 远端模型列表（获取模型后展示，点击加入/移除） */
+.remote-models {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-height: 168px;
+  overflow-y: auto;
+  margin-top: 8px;
+  padding: 8px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+}
+.remote-model {
+  padding: 3px 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--bg-2);
+  color: var(--text-2);
+  font-size: 11px;
+  font-family: var(--mono, monospace);
+  cursor: pointer;
+  transition: all 0.15s var(--ease-out);
+}
+.remote-model:hover { border-color: var(--accent); color: var(--text-0); }
+.remote-model.on {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+  color: var(--accent-text);
+  font-weight: 600;
+}
+
+/* 配置行优先级排序按钮 */
+.cfg-order {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.cfg-order .btn[disabled] { opacity: 0.35; cursor: default; }
 
 /* ===== 内容语言选择器（通用 tab） ===== */
 .lang-picker { display: flex; gap: 2px; padding: 3px; border-radius: var(--radius-pill); background: var(--overlay-track); }
@@ -1787,6 +2196,7 @@ onBeforeUnmount(stopUsagePoll)
 }
 .preset-pill:hover { background: var(--button-bg-hover); color: var(--text-0); }
 .preset-pill:focus-visible { outline: none; box-shadow: 0 0 0 3.5px var(--button-focus); }
+.preset-pill.on { background: var(--accent-bg); color: var(--accent-text); box-shadow: inset 0 0 0 1px var(--accent); }
 .test-result {
   display: flex;
   flex-direction: column;
@@ -1835,5 +2245,26 @@ onBeforeUnmount(stopUsagePoll)
   border-radius: 3px;
   background: var(--accent);
   transition: width 0.2s ease;
+}
+
+/* 内网穿透运行日志（默认折叠，诊断时展开） */
+.tunnel-log {
+  margin-top: 10px;
+}
+.tunnel-log summary {
+  cursor: pointer;
+  user-select: none;
+}
+.tunnel-log pre {
+  margin: 8px 0 0;
+  padding: 10px 12px;
+  max-height: 220px;
+  overflow: auto;
+  border-radius: 8px;
+  background: var(--overlay-track);
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-all;
 }
 </style>

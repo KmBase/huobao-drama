@@ -13,6 +13,26 @@ export interface UpdateState {
   downloadedFile?: string
 }
 
+export type TunnelMode = 'quick' | 'token'
+export type TunnelStatus = 'stopped' | 'starting' | 'running' | 'error' | 'unavailable'
+
+export interface TunnelState {
+  status: TunnelStatus
+  mode: TunnelMode
+  publicUrl: string
+  error: string
+  log: string[]
+}
+
+export interface TunnelConfig {
+  autoStart: boolean
+  mode: TunnelMode
+  token: string
+  publicUrl: string
+  binaryPath: string
+  backendPort: number
+}
+
 export interface HuobaoDesktopBridge {
   pickDirectory: () => Promise<{ ok: boolean, path?: string, freeBytes?: number | null, error?: string, canceled?: boolean }>
   startMigration: (opts: { targetDir: string, migrateFiles: boolean }) => Promise<{ ok: boolean }>
@@ -22,6 +42,13 @@ export interface HuobaoDesktopBridge {
   downloadUpdate: () => Promise<UpdateState>
   applyUpdate: () => Promise<void>
   onUpdateProgress: (cb: (percent: number) => void) => () => void
+  // 内网穿透（cloudflared 托管）
+  getTunnelState: () => Promise<TunnelState>
+  getTunnelConfig: () => Promise<TunnelConfig>
+  setTunnelConfig: (next: Partial<TunnelConfig>) => Promise<TunnelConfig>
+  startTunnel: () => Promise<TunnelState>
+  stopTunnel: () => Promise<TunnelState>
+  onTunnelState: (cb: (state: TunnelState) => void) => () => void
 }
 
 export function useDesktopBridge(): HuobaoDesktopBridge | null {

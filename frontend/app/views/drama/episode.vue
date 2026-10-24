@@ -919,6 +919,7 @@
                 </div>
               </div>
               <div v-else class="export-merge-empty">{{ t('episode.export.empty') }}</div>
+              <div v-if="!mergeSupported" class="export-merge-empty" style="margin-top:6px;color:#e6a23c">{{ t('episode.export.mergeUnsupported') }}</div>
             </div>
 
             <!-- 下方:镜头素材(可勾选) -->
@@ -932,7 +933,8 @@
                   </button>
                   <button
                     class="btn btn-sm btn-primary"
-                    :disabled="!exportSelectedReadyIds.length"
+                    :disabled="!mergeSupported || !exportSelectedReadyIds.length"
+                    :title="mergeSupported ? undefined : t('episode.export.mergeUnsupported')"
                     @click="doMerge(exportSelectedReadyIds)"
                   >
                     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
@@ -997,6 +999,9 @@
               <div class="video-task-meta">{{ t('episode.tasks.meta', { n: genTaskRows.length }) }}</div>
             </div>
             <div class="task-drawer-head-actions">
+              <button v-if="genTaskFinishedCount > 0" class="btn btn-sm" @click="genTaskClear">
+                <Trash2 :size="11" /> {{ t('episode.tasks.clear') }}
+              </button>
               <button class="btn btn-sm" @click="loadGenTasks">
                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
                 {{ t('common.refresh') }}
@@ -1061,6 +1066,15 @@
                 <div v-if="row.errorMsg" class="video-task-error" :title="row.errorMsg">
                   {{ mapError(row.errorMsg) }}
                   <div v-if="row.kind === 'video' && videoModerationHint(row.errorMsg)" class="video-task-error-hint">{{ videoModerationHint(row.errorMsg) }}</div>
+                </div>
+                <div v-if="row.kind !== 'merge' && genTaskRowActions(row).length" class="video-task-actions">
+                  <button
+                    v-for="action in genTaskRowActions(row)"
+                    :key="action.key"
+                    class="btn btn-sm"
+                    :disabled="action.busy"
+                    @click="action.run(row)"
+                  >{{ action.label }}</button>
                 </div>
               </div>
               <span :class="['video-task-status', 'is-' + genTaskStateClass(row.status)]">
@@ -1422,6 +1436,14 @@
         @confirm="confirmDeleteAsset"
         @cancel="assetDelete.open = false"
       />
+
+      <ConfirmDialog
+        :open="taskConfirm.open"
+        :title="taskConfirm.title"
+        :message="taskConfirm.message"
+        @confirm="runTaskConfirm"
+        @cancel="taskConfirm.open = false"
+      />
     </main>
     </div>
   </div>
@@ -1432,9 +1454,9 @@ import { toast } from 'vue-sonner'
 import { useI18n } from 'vue-i18n'
 import {
   Users, FileText, FolderKanban, Clapperboard, Download, Loader2,
-  Plus, X, ListTodo, CircleHelp,
+  Plus, X, ListTodo, CircleHelp, Trash2,
 } from 'lucide-vue-next'
-import { api, dramaAPI, episodeAPI, storyboardAPI, characterAPI, sceneAPI, propAPI, taskAPI, mergeAPI, aiConfigAPI, uploadAPI } from '~/composables/useApi'
+import { api, dramaAPI, episodeAPI, storyboardAPI, characterAPI, sceneAPI, propAPI, taskAPI, mergeAPI, aiConfigAPI, uploadAPI, loadCapabilities } from '~/composables/useApi'
 import { startTour, autoTour } from '~/composables/useTour'
 import { useAgent } from '~/composables/useAgent'
 import { toastError, mapError, MODERATION_RE } from '~/composables/useToast'
@@ -1474,6 +1496,7 @@ const scriptLen = computed(() => localScript.value.replace(/\s/g, '').length || 
 // ===== 拼接导出:镜头选择 + 成片列表 =====
 const exportSelectedIds = ref([]) // 勾选的镜头 id
 const exportMerges = ref([])      // 成片(拼接记录)列表
+const mergeSupported = ref(true)  // capabilities.merge === 'server'；serverless 形态为 false
 let exportSelTouched = false      // 用户手动操作过选择后,不再自动全选
 
 const exportReadyIds = computed(() => sbs.value.filter(s => hasVid(s)).map(s => s.id))
@@ -2213,11 +2236,14 @@ async function loadGenTasks() {
     // 永不消退(videoTaskState 中 pending 优先于 failed,重试按钮还被禁用)
     const pending = new Set()
     const failed = {}
-    for (const [sbId, t] of latestBySb) {
+    for (const [sbId, row] of latestBySb) {
       // 分镜已有视频(失败后重试成功)时不再报历史错误
       if (hasVid(sbs.value.find(s => s.id === sbId))) continue
-      if (t.status === 'processing') pending.add(sbId)
-      else if (t.status === 'failed') failed[sbId] = t.error_msg || t('episode.status.failed')
+      // 注意这里用 row 而不是 t：t 是 i18n 翻译函数，被任务行遮蔽会让下方 fallback 崩溃
+      if (row.status === 'processing') pending.add(sbId)
+      else if (row.status === 'failed' || row.status === 'cancelled') {
+        failed[sbId] = row.error_msg || (row.status === 'cancelled' ? t('episode.status.cancelled') : t('episode.status.failed'))
+      }
     }
     // 刚点击提交、任务记录尚未加载出来的本地状态保留,避免状态闪退
     for (const id of pendingVideoIds.value) if (!latestBySb.has(id)) pending.add(id)
@@ -2242,9 +2268,85 @@ const genTaskDoneCount = computed(() =>
   genMerges.value.filter(m => m.status === 'completed').length
 )
 const genTaskFailedCount = computed(() =>
-  genTasks.value.filter(t => t.status === 'failed').length +
+  genTasks.value.filter(t => t.status === 'failed' || t.status === 'cancelled').length +
   genMerges.value.filter(m => m.status === 'failed').length
 )
+// 已结束（可清理）的任务数：仅统计 sys_task 行，merges 不在清理范围
+const genTaskFinishedCount = computed(() =>
+  genTasks.value.filter(t => t.status !== 'processing').length
+)
+
+// 任务行操作：取消（进行中）/ 重试（失败、已取消）/ 删除（非进行中）
+function genTaskRowActions(row) {
+  if (row.kind === 'merge') return []
+  const actions = []
+  if (row.status === 'processing') {
+    actions.push({ key: 'cancel', label: t('episode.tasks.actionCancel'), run: genTaskCancel })
+  } else {
+    if (row.status === 'failed' || row.status === 'cancelled') {
+      actions.push({ key: 'retry', label: t('episode.tasks.actionRetry'), run: genTaskRetry })
+    }
+    actions.push({ key: 'delete', label: t('episode.tasks.actionDelete'), run: genTaskDelete })
+  }
+  return actions
+}
+
+const taskConfirm = reactive({ open: false, title: '', message: '', run: null })
+
+function confirmTaskAction(title, message, run) {
+  taskConfirm.title = title
+  taskConfirm.message = message
+  taskConfirm.run = run
+  taskConfirm.open = true
+}
+
+async function runTaskConfirm() {
+  const run = taskConfirm.run
+  taskConfirm.open = false
+  taskConfirm.run = null
+  if (!run) return
+  try { await run() } catch (e) { toastError(e) }
+}
+
+async function genTaskCancel(row) {
+  try {
+    await taskAPI.cancel(row.id)
+    await loadGenTasks()
+  } catch (e) { toastError(e) }
+}
+
+async function genTaskRetry(row) {
+  try {
+    await taskAPI.retry(row.id)
+    toast.success(t('episode.tasks.retried'))
+    await loadGenTasks()
+  } catch (e) { toastError(e) }
+}
+
+function genTaskDelete(row) {
+  confirmTaskAction(
+    t('episode.tasks.actionDelete'),
+    t('episode.tasks.deleteConfirm', { n: row.id }),
+    async () => {
+      await taskAPI.del(row.id)
+      await loadGenTasks()
+    },
+  )
+}
+
+function genTaskClear() {
+  const n = genTaskFinishedCount.value
+  if (!n) return
+  confirmTaskAction(
+    t('episode.tasks.clear'),
+    t('episode.tasks.clearConfirm', { n }),
+    async () => {
+      const r = await taskAPI.clear('finished')
+      toast.success(t('episode.tasks.cleared', { n: r?.deleted ?? 0 }))
+      await loadGenTasks()
+    },
+  )
+}
 
 function genTaskTargetLabel(task) {
   if (task.storyboard_id) {
@@ -2306,13 +2408,14 @@ function genTaskKindLabel(kind) {
 function genTaskStatusLabel(status) {
   if (status === 'completed') return t('episode.status.done')
   if (status === 'failed') return t('episode.status.failed')
+  if (status === 'cancelled') return t('episode.status.cancelled')
   return t('episode.status.generating')
 }
 
 // 映射到现有 video-task-status 的样式类:is-done / is-pending / is-failed
 function genTaskStateClass(status) {
   if (status === 'completed') return 'done'
-  if (status === 'failed') return 'failed'
+  if (status === 'failed' || status === 'cancelled') return 'failed'
   return 'pending'
 }
 
@@ -3326,6 +3429,11 @@ async function pollVideoGeneration(generationId, storyboardId) {
   toast.error(t('episode.vid.genTimeout'))
 }
 async function doMerge(ids) {
+  // serverless 形态无 ffmpeg，成片拼接不可用（capabilities.merge === 'none'）
+  if (!mergeSupported.value) {
+    toastError(t('episode.export.mergeUnsupported'))
+    return
+  }
   const storyboardIds = Array.isArray(ids) ? ids : undefined
   if (storyboardIds && !storyboardIds.length) {
     toast.error(t('episode.export.selectFirst'))
@@ -3364,7 +3472,10 @@ async function loadConfigs() {
   } catch (e) { console.error('Failed to load AI configs', e) }
 }
 
-onMounted(async () => { await refresh(); loadConfigs(); syncExtractStatus() })
+onMounted(async () => {
+  await refresh(); loadConfigs(); syncExtractStatus()
+  loadCapabilities().then(c => { mergeSupported.value = c.merge !== 'none' }).catch(() => {})
+})
 
 // ===== 应用内引导（工作台）：沿左侧进度栏走 6 步流水线 =====
 const EPISODE_TOUR = [
@@ -5957,6 +6068,17 @@ button.video-task-metric.on { box-shadow: 0 0 0 2px var(--accent); }
   display: flex;
   align-items: center;
   gap: 6px;
+}
+/* 任务行操作（取消/重试/删除）：紧凑按钮行 */
+.video-task-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+.video-task-actions .btn {
+  padding: 3px 10px;
+  font-size: 11px;
+  line-height: 1.4;
 }
 .task-drawer-metrics {
   padding: 10px 16px;

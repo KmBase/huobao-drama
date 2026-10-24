@@ -1,46 +1,74 @@
 /**
- * 文件存储工具 — 下载远程文件到本地
+ * 文件存储工具 — 本地磁盘 / Vercel Blob 双实现
+ *
+ * 相对路径 `static/<subDir>/<file>` 是全链路的规范引用形态（DB 存它、前端经
+ * /static/ 访问它），两种实现产出完全一致的相对路径，调用方无感知：
+ *   - 本地：写入 STORAGE_ROOT，serveStatic 直接读盘
+ *   - Blob：put 到同构 pathname，/static 路由 302 重定向到 Blob URL
+ * serverless 开关见 utils/runtime-mode.ts；@vercel/blob 均为动态 import，
+ * 保证本地/桌面形态不引入该依赖（desktop esbuild 已列 external）。
  */
 import fs from 'fs'
 import path from 'path'
 import sharp from 'sharp'
 import { v4 as uuid } from 'uuid'
 import { STORAGE_ROOT } from './paths.js'
+import { IS_SERVERLESS } from './runtime-mode.js'
+
+async function putBlob(pathname: string, buffer: Buffer, contentType?: string): Promise<void> {
+  const { put } = await import('@vercel/blob')
+  await put(pathname, buffer, { access: 'public', addRandomSuffix: false, contentType })
+}
+
+/** 统一写入口：local 落盘 / Blob put，均返回规范相对路径 */
+async function saveBuffer(buffer: Buffer, subDir: string, filename: string, contentType?: string): Promise<string> {
+  const relativePath = `static/${subDir}/${filename}`
+  if (IS_SERVERLESS) {
+    await putBlob(relativePath, buffer, contentType)
+  } else {
+    const dir = path.join(STORAGE_ROOT, subDir)
+    fs.mkdirSync(dir, { recursive: true })
+    fs.writeFileSync(path.join(dir, filename), buffer)
+  }
+  return relativePath
+}
+
+/** Blob 模式下由相对路径解析出可读 URL（head 是权威解析，兼容自定义前缀） */
+async function blobUrlFor(relativePath: string): Promise<string> {
+  const { head } = await import('@vercel/blob')
+  const meta = await head(relativePath)
+  return meta.url
+}
+
+/** 读取已存储文件的原始字节（Blob 模式经 URL fetch，本地模式读盘） */
+async function readFileBuffer(relativePath: string): Promise<Buffer> {
+  if (IS_SERVERLESS) {
+    const resp = await fetch(await blobUrlFor(relativePath))
+    if (!resp.ok) throw new Error(`Blob read failed: ${resp.status} ${relativePath}`)
+    return Buffer.from(await resp.arrayBuffer())
+  }
+  return fs.readFileSync(getAbsolutePath(relativePath))
+}
 
 /**
  * 下载远程文件到本地存储
  */
 export async function downloadFile(url: string, subDir: string): Promise<string> {
-  const dir = path.join(STORAGE_ROOT, subDir)
-  fs.mkdirSync(dir, { recursive: true })
-
-  const ext = getExtFromUrl(url)
-  const filename = `${uuid()}${ext}`
-  const filePath = path.join(dir, filename)
-
   const resp = await fetch(url)
   if (!resp.ok) throw new Error(`Download failed: ${resp.status}`)
 
-  const buffer = Buffer.from(await resp.arrayBuffer())
-  fs.writeFileSync(filePath, buffer)
-
-  // 返回相对路径（供 API 返回给前端）
-  return `static/${subDir}/${filename}`
+  const ext = getExtFromUrl(url)
+  const filename = `${uuid()}${ext}`
+  return saveBuffer(Buffer.from(await resp.arrayBuffer()), subDir, filename)
 }
 
 /**
  * 保存上传的文件
  */
 export async function saveUploadedFile(data: ArrayBuffer, subDir: string, originalName: string): Promise<string> {
-  const dir = path.join(STORAGE_ROOT, subDir)
-  fs.mkdirSync(dir, { recursive: true })
-
   const ext = path.extname(originalName) || '.bin'
   const filename = `${uuid()}${ext}`
-  const filePath = path.join(dir, filename)
-
-  fs.writeFileSync(filePath, Buffer.from(data))
-  return `static/${subDir}/${filename}`
+  return saveBuffer(Buffer.from(data), subDir, filename)
 }
 
 function getExtFromUrl(url: string): string {
@@ -53,7 +81,8 @@ function getExtFromUrl(url: string): string {
 }
 
 /**
- * 获取本地文件的绝对路径
+ * 获取本地文件的绝对路径 —— 仅本地存储实现可用（sharp/ffmpeg 读盘）。
+ * Blob 形态的读取一律走 readFileBuffer / blobUrlFor。
  */
 export function getAbsolutePath(relativePath: string): string {
   if (relativePath.startsWith('static/')) {
@@ -63,22 +92,13 @@ export function getAbsolutePath(relativePath: string): string {
 }
 
 /**
- * 保存 Base64 编码的图片数据到本地存储
+ * 保存 Base64 编码的图片数据到存储
  * 用于 Gemini 等只返回 base64 数据的厂商
  */
 export async function saveBase64Image(base64Data: string, mimeType: string, subDir: string): Promise<string> {
-  const dir = path.join(STORAGE_ROOT, subDir)
-  fs.mkdirSync(dir, { recursive: true })
-
-  // 从 mimeType 推断文件扩展名
   const ext = mimeTypeToExt(mimeType)
   const filename = `${uuid()}${ext}`
-  const filePath = path.join(dir, filename)
-
-  const buffer = Buffer.from(base64Data, 'base64')
-  fs.writeFileSync(filePath, buffer)
-
-  return `static/${subDir}/${filename}`
+  return saveBuffer(Buffer.from(base64Data, 'base64'), subDir, filename, mimeType)
 }
 
 /** 由图片相对路径推导缩略图路径：static/images/x.png → static/images/x_thumb.webp */
@@ -93,11 +113,17 @@ export function thumbPathFor(relativePath: string): string {
 export async function generateImageThumb(relativePath: string): Promise<string | null> {
   try {
     const thumbRel = thumbPathFor(relativePath)
-    await sharp(getAbsolutePath(relativePath))
+    const input = await readFileBuffer(relativePath)
+    const output = await sharp(input)
       .rotate()
       .resize({ width: 400, withoutEnlargement: true })
       .webp({ quality: 78 })
-      .toFile(getAbsolutePath(thumbRel))
+      .toBuffer()
+    if (IS_SERVERLESS) {
+      await putBlob(thumbRel, output, 'image/webp')
+    } else {
+      fs.writeFileSync(getAbsolutePath(thumbRel), output)
+    }
     return thumbRel
   } catch (err) {
     console.warn(`[storage] 缩略图生成失败 ${relativePath}:`, (err as Error).message)
@@ -105,10 +131,9 @@ export async function generateImageThumb(relativePath: string): Promise<string |
   }
 }
 
-export function readImageAsDataUrl(relativePath: string): string {
-  const filePath = getAbsolutePath(relativePath)
-  const buffer = fs.readFileSync(filePath)
-  const ext = path.extname(filePath).toLowerCase()
+export async function readImageAsDataUrl(relativePath: string): Promise<string> {
+  const buffer = await readFileBuffer(relativePath)
+  const ext = path.extname(relativePath).toLowerCase()
   const mimeType = extToMimeType(ext)
   return `data:${mimeType};base64,${buffer.toString('base64')}`
 }
@@ -121,7 +146,7 @@ export async function readImageAsCompressedDataUrl(
     quality?: number
   } = {},
 ): Promise<string> {
-  return compressImageAsDataUrl(getAbsolutePath(relativePath), options)
+  return compressImageAsDataUrl(await readFileBuffer(relativePath), options)
 }
 
 /**
@@ -197,3 +222,5 @@ function extToMimeType(ext: string): string {
   }
   return map[ext] || 'image/png'
 }
+
+export { blobUrlFor }
