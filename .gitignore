@@ -61,3 +61,4 @@ desktop/build/
 desktop/dist/
 desktop/release/
 desktop/resources/
+backend/scripts/tmp-check-*.cjs
