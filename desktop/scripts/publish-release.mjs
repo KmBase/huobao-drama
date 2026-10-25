@@ -96,7 +96,7 @@ const buildFeed = async (baseUrl) => {
 }
 
 // GitHub 版(沿用 make-update-feed 的 base-url 约定)
-const ghFeed = await buildFeed(`https://github.com/chatfire-AI/huobao-drama/releases/download/${tag}`)
+const ghFeed = await buildFeed(`https://github.com/KmBase/huobao-drama/releases/download/${tag}`)
 fs.writeFileSync(path.join(RELEASE, 'latest.json'), JSON.stringify(ghFeed, null, 2))
 if (!skipGh) execFileSync('gh', ['release', 'upload', tag, path.join(RELEASE, 'latest.json'), '--clobber'], { stdio: 'inherit' })
 
@@ -137,6 +137,6 @@ console.log('  ✓ latest.js (官网自动下载清单)')
 
 console.log(`
 发布完成:
-  海外  https://github.com/chatfire-AI/huobao-drama/releases/${tag}
+  海外  https://github.com/KmBase/huobao-drama/releases/${tag}
   国内  ${COS_BASE_URL}/latest.json
 `)

@@ -7,7 +7,7 @@
 [![Node Version](https://img.shields.io/badge/Node.js-20+-339933?style=flat&logo=node.js)](https://nodejs.org)
 [![Vue Version](https://img.shields.io/badge/Vue-3.x-4FC08D?style=flat&logo=vue.js)](https://vuejs.org)
 [![License](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by-nc-sa/4.0/)
-[![다운로드](https://img.shields.io/github/v/release/chatfire-AI/huobao-drama?style=flat&logo=github&label=%EB%8B%A4%EC%9A%B4%EB%A1%9C%EB%93%9C)](https://github.com/chatfire-AI/huobao-drama/releases/latest)
+[![다운로드](https://img.shields.io/github/v/release/KmBase/huobao-drama?style=flat&logo=github&label=%EB%8B%A4%EC%9A%B4%EB%A1%9C%EB%93%9C)](https://github.com/KmBase/huobao-drama/releases/latest)
 
 [English](README.md) | [简体中文](README.zh-CN.md) | [日本語](README.ja.md) | **한국어**
 
@@ -19,7 +19,7 @@
 
 배포 후 「설정 → Agnes 빠른 설정」에 Key를 붙여넣으면 추천 설정 3개가 한 번에 입력됩니다
 
-<h3>📥 <a href="https://github.com/chatfire-AI/huobao-drama/releases/latest">데스크톱 앱 다운로드 (macOS / Windows)</a></h3>
+<h3>📥 <a href="https://github.com/KmBase/huobao-drama/releases/latest">데스크톱 앱 다운로드 (macOS / Windows)</a></h3>
 <h3>🌐 <a href="https://www.chatfire.site">공식 웹사이트</a></h3>
 
 </div>
@@ -133,7 +133,7 @@ data/       — 생성된 에셋과 SQLite 데이터베이스
 
 ```bash
 # 저장소 클론
-git clone https://github.com/chatfire-AI/huobao-drama.git
+git clone https://github.com/KmBase/huobao-drama.git
 cd huobao-drama
 
 # 백엔드 의존성 설치
@@ -284,7 +284,7 @@ cd backend && npx tsx scripts/import-mysql-to-sqlite.ts
 
 ### 🖥️ 데스크톱 앱(권장)
 
-**⬇️ 빌드된 설치 파일: [GitHub Releases](https://github.com/chatfire-AI/huobao-drama/releases/latest) · [중국용 미러(Tencent COS)](https://installer.chatfire.site/huobao-drama/v4.0.5/)**
+**⬇️ 빌드된 설치 파일: [GitHub Releases](https://github.com/KmBase/huobao-drama/releases/latest) · [중국용 미러(Tencent COS)](https://installer.chatfire.site/huobao-drama/v4.0.5/)**
 
 | 플랫폼 | 다운로드 파일 |
 |---|---|

@@ -16,12 +16,11 @@ import * as path from 'path'
 import crypto from 'crypto'
 import { spawn, execFile } from 'child_process'
 
-// 双源：COS（国内直连）优先，GitHub（海外）兜底；HUOBAO_UPDATE_FEED 可整体覆盖
+// 默认源：GitHub Releases（releases/latest/download/latest.json）；HUOBAO_UPDATE_FEED 可整体覆盖
 const FEED_URLS = process.env.HUOBAO_UPDATE_FEED
   ? [process.env.HUOBAO_UPDATE_FEED]
   : [
-    'https://installer.chatfire.site/huobao-drama/latest.json',
-    'https://github.com/chatfire-AI/huobao-drama/releases/latest/download/latest.json',
+    'https://github.com/KmBase/huobao-drama/releases/latest/download/latest.json',
   ]
 
 export interface UpdateState {

@@ -7,7 +7,7 @@
 [![Node Version](https://img.shields.io/badge/Node.js-20+-339933?style=flat&logo=node.js)](https://nodejs.org)
 [![Vue Version](https://img.shields.io/badge/Vue-3.x-4FC08D?style=flat&logo=vue.js)](https://vuejs.org)
 [![License](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by-nc-sa/4.0/)
-[![ダウンロード](https://img.shields.io/github/v/release/chatfire-AI/huobao-drama?style=flat&logo=github&label=%E3%83%80%E3%82%A6%E3%83%B3%E3%83%AD%E3%83%BC%E3%83%89)](https://github.com/chatfire-AI/huobao-drama/releases/latest)
+[![ダウンロード](https://img.shields.io/github/v/release/KmBase/huobao-drama?style=flat&logo=github&label=%E3%83%80%E3%82%A6%E3%83%B3%E3%83%AD%E3%83%BC%E3%83%89)](https://github.com/KmBase/huobao-drama/releases/latest)
 
 [English](README.md) | [简体中文](README.zh-CN.md) | **日本語** | [한국어](README.ko.md)
 
@@ -19,7 +19,7 @@
 
 デプロイ後、「設定 → Agnes クイック設定」に Key を貼るだけで、3 つの推奨設定をワンクリックで書き込み
 
-<h3>📥 <a href="https://github.com/chatfire-AI/huobao-drama/releases/latest">デスクトップ版をダウンロード（macOS / Windows）</a></h3>
+<h3>📥 <a href="https://github.com/KmBase/huobao-drama/releases/latest">デスクトップ版をダウンロード（macOS / Windows）</a></h3>
 <h3>🌐 <a href="https://www.chatfire.site">公式サイト</a></h3>
 
 </div>
@@ -133,7 +133,7 @@ data/       — 生成アセットと SQLite データベース
 
 ```bash
 # リポジトリをクローン
-git clone https://github.com/chatfire-AI/huobao-drama.git
+git clone https://github.com/KmBase/huobao-drama.git
 cd huobao-drama
 
 # バックエンドの依存をインストール
@@ -284,7 +284,7 @@ cd backend && npx tsx scripts/import-mysql-to-sqlite.ts
 
 ### 🖥️ デスクトップアプリ（推奨）
 
-**⬇️ ビルド済みインストーラー: [GitHub Releases](https://github.com/chatfire-AI/huobao-drama/releases/latest) · [中国向けミラー（Tencent COS）](https://installer.chatfire.site/huobao-drama/v4.0.5/)**
+**⬇️ ビルド済みインストーラー: [GitHub Releases](https://github.com/KmBase/huobao-drama/releases/latest) · [中国向けミラー（Tencent COS）](https://installer.chatfire.site/huobao-drama/v4.0.5/)**
 
 | プラットフォーム | ダウンロードファイル |
 |---|---|

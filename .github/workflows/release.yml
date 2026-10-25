@@ -1,0 +1,106 @@
+# 桌面版发布流水线：推送 v* tag 时触发
+# macOS（arm64/x64 dmg+zip）与 Windows（x64 NSIS exe）双平台构建，
+# 汇总后生成更新清单 latest.json，一并上传到 GitHub Release。
+# 推送更新 = 打 tag（tag 必须与 desktop/package.json 的 version 一致，形如 v4.0.8）。
+name: Release Desktop
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            dist: dist
+          - os: windows-latest
+            dist: dist:win
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install backend deps
+        working-directory: backend
+        run: npm install
+
+      - name: Install frontend deps
+        working-directory: frontend
+        run: npm install
+
+      - name: Install desktop deps
+        working-directory: desktop
+        run: npm install
+
+      # Windows 包内置 ffmpeg.exe 需手动获取（prepare-resources 只做提示，不自动下载）
+      - name: Fetch Windows ffmpeg
+        if: runner.os == 'Windows'
+        working-directory: desktop
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force build/win-bin | Out-Null
+          Invoke-WebRequest -Uri 'https://github.com/eugeneware/ffmpeg-static/releases/download/b6.0/ffmpeg-win32-x64' -OutFile 'build/win-bin/ffmpeg.exe'
+
+      - name: Build packages
+        working-directory: desktop
+        run: npm run ${{ matrix.dist }}
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.os }}
+          if-no-files-found: error
+          path: |
+            desktop/release/*.dmg
+            desktop/release/*-mac.zip
+            desktop/release/*.exe
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: dist-*
+          merge-multiple: true
+          path: desktop/release
+
+      - name: Verify tag matches version
+        run: |
+          VER="v$(node -p "require('./desktop/package.json').version")"
+          if [ "$VER" != "${{ github.ref_name }}" ]; then
+            echo "tag ${{ github.ref_name }} 与 desktop/package.json 版本 $VER 不一致"
+            exit 1
+          fi
+
+      - name: Generate update feed (latest.json)
+        working-directory: desktop
+        env:
+          GITHUB_REPO: ${{ github.repository }}
+        run: node scripts/make-update-feed.mjs --notes "Release ${{ github.ref_name }}"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            desktop/release/*.dmg
+            desktop/release/*-mac.zip
+            desktop/release/*.exe
+            desktop/release/latest.json

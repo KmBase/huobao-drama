@@ -7,7 +7,7 @@
 [![Node Version](https://img.shields.io/badge/Node.js-20+-339933?style=flat&logo=node.js)](https://nodejs.org)
 [![Vue Version](https://img.shields.io/badge/Vue-3.x-4FC08D?style=flat&logo=vue.js)](https://vuejs.org)
 [![License](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by-nc-sa/4.0/)
-[![Download](https://img.shields.io/github/v/release/chatfire-AI/huobao-drama?style=flat&logo=github&label=Download)](https://github.com/chatfire-AI/huobao-drama/releases/latest)
+[![Download](https://img.shields.io/github/v/release/KmBase/huobao-drama?style=flat&logo=github&label=Download)](https://github.com/KmBase/huobao-drama/releases/latest)
 
 **English** | [简体中文](README.zh-CN.md) | [日本語](README.ja.md) | [한국어](README.ko.md)
 
@@ -19,7 +19,7 @@
 
 After deploying, paste the key in "Settings → Agnes Quick Setup" to write three recommended configs in one click
 
-<h3>📥 <a href="https://github.com/chatfire-AI/huobao-drama/releases/latest">Download Desktop App (macOS / Windows)</a></h3>
+<h3>📥 <a href="https://github.com/KmBase/huobao-drama/releases/latest">Download Desktop App (macOS / Windows)</a></h3>
 <h3>🌐 <a href="https://www.chatfire.site">Official Website</a></h3>
 
 </div>
@@ -133,7 +133,7 @@ No config files — everything is set via environment variables (all have defaul
 
 ```bash
 # Clone the repository
-git clone https://github.com/chatfire-AI/huobao-drama.git
+git clone https://github.com/KmBase/huobao-drama.git
 cd huobao-drama
 
 # Install backend dependencies
@@ -284,7 +284,7 @@ The episode list shows the production status of every episode — click "Enter S
 
 ### 🖥️ Desktop App (recommended)
 
-**⬇️ Prebuilt installers: [GitHub Releases](https://github.com/chatfire-AI/huobao-drama/releases/latest) · [Mirror for China (Tencent COS)](https://installer.chatfire.site/huobao-drama/v4.0.5/)**
+**⬇️ Prebuilt installers: [GitHub Releases](https://github.com/KmBase/huobao-drama/releases/latest) · [Mirror for China (Tencent COS)](https://installer.chatfire.site/huobao-drama/v4.0.5/)**
 
 | Platform | File to download |
 |---|---|
@@ -650,4 +650,4 @@ This project has been recognized with a link from the [LINUX DO](https://linux.d
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/chart?repos=chatfire-ai/huobao-drama&type=date&legend=top-left)](https://www.star-history.com/?repos=chatfire-ai%2Fhuobao-drama&type=date&legend=top-left)
+[![Star History Chart](https://api.star-history.com/chart?repos=KmBase/huobao-drama&type=date&legend=top-left)](https://www.star-history.com/?repos=KmBase%2Fhuobao-drama&type=date&legend=top-left)
