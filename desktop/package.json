@@ -9,11 +9,12 @@
   "scripts": {
     "build:backend": "node scripts/build-backend.mjs",
     "build:main": "node scripts/build-main.mjs",
+    "build:frontend": "cd ../frontend && npm run generate",
     "rebuild:native": "electron-builder install-app-deps",
     "postinstall": "electron-builder install-app-deps",
     "dev": "npm run build:backend && npm run build:main && electron .",
-    "dist": "npm run build:backend && npm run build:main && node scripts/prepare-resources.mjs && electron-builder --mac",
-    "dist:win": "npm run build:backend && npm run build:main && node scripts/prepare-resources.mjs && electron-builder --win",
+    "dist": "npm run build:backend && npm run build:main && npm run build:frontend && node scripts/prepare-resources.mjs && electron-builder --mac",
+    "dist:win": "npm run build:backend && npm run build:main && npm run build:frontend && node scripts/prepare-resources.mjs && electron-builder --win",
     "feed": "node scripts/make-update-feed.mjs",
     "publish": "node scripts/publish-release.mjs"
   },

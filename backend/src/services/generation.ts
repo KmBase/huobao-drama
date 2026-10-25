@@ -22,7 +22,7 @@ const taskLabel = (type: TaskType) => (type === 'image' ? 'ImageTask' : 'VideoTa
 // 轮询节奏：图片 5s×120（上限 10 分钟）；视频 10s×300
 const POLL_PROFILES: Record<TaskType, { attempts: number; intervalMs: number; maxDurationMs: number | null }> = {
   image: { attempts: 120, intervalMs: 5000, maxDurationMs: 600_000 },
-  video: { attempts: 300, intervalMs: 10_000, maxDurationMs: null },
+  video: { attempts: 300, intervalMs: 20_000, maxDurationMs: null },
 }
 
 interface GenerateImageParams {
@@ -197,7 +197,7 @@ function parseTaskParams(raw: string | null | undefined): Record<string, any> {
 async function processTask(id: number, config: AIConfig) {
   try {
     // 提交期心跳：sweep 以 updatedAt > 90s 视为僵死，提交耗时长时避免被误判重提交
-    await touchTask(id)
+    await writeProgress(id, { stage: 'submit' })
     const [record] = await db.select().from(schema.sysTask).where(eq(schema.sysTask.id, id))
     if (!record) return
     const type = record.type as TaskType
@@ -247,6 +247,7 @@ async function processTask(id: number, config: AIConfig) {
         model: record.model,
         prompt: record.prompt,
         referenceMode: params.referenceMode,
+        frameMode: params.frameMode,
         imageUrl: resolvedImageUrl,
         firstFrameUrl: resolvedFirstFrameUrl,
         lastFrameUrl: resolvedLastFrameUrl,
@@ -319,7 +320,7 @@ async function processTask(id: number, config: AIConfig) {
     }
 
     const adapter = getVideoAdapter(config.protocol)
-    const { isAsync, taskId, videoUrl } = adapter.parseGenerateResponse(result)
+    const { isAsync, taskId, videoUrl } = adapter.parseGenerateResponse(result, { config, model: record.model })
 
     if (!isAsync && videoUrl) {
       logTaskProgress(label, 'sync-complete', { id, videoUrl })
@@ -338,12 +339,28 @@ async function markPolling(id: number, taskId: string | undefined) {
   await db.update(schema.sysTask)
     .set({ taskId, status: 'processing', updatedAt: now() })
     .where(eq(schema.sysTask.id, id))
+  await writeProgress(id, { stage: 'poll', attempts: 0 })
   logTaskProgress('SysTask', 'poll-start', { id, taskId })
 }
 
 /** 心跳：刷新 updatedAt，向 sweep 表明任务有活着的执行者（本地轮询线程 / waitUntil / sweep tick） */
 async function touchTask(id: number) {
   await db.update(schema.sysTask).set({ updatedAt: now() }).where(eq(schema.sysTask.id, id))
+}
+
+type TaskProgress = { stage?: string; attempts?: number; lastPollAt?: string; detail?: string; percent?: number; upstream?: string }
+
+/** 进度落库（合并写）：轮询循环每轮更新，任务详情/列表据此展示异步进度 */
+async function writeProgress(id: number, patch: TaskProgress) {
+  try {
+    const [row] = await db.select({ progress: schema.sysTask.progress }).from(schema.sysTask).where(eq(schema.sysTask.id, id))
+    const cur = parseTaskParams(row?.progress)
+    await db.update(schema.sysTask)
+      .set({ progress: JSON.stringify({ ...cur, ...patch }), updatedAt: now() })
+      .where(eq(schema.sysTask.id, id))
+  } catch (err: any) {
+    logTaskWarn('SysTask', 'progress-write', { id, error: err.message })
+  }
 }
 
 /** 终态集合：终态互不覆盖（取消后上游超时/报错不得改写为 failed） */
@@ -382,8 +399,8 @@ async function pollTask(record: SysTaskRecord, config: AIConfig, taskId: string)
       logTaskProgress(label, 'poll-stop', { id: record.id, status: cur.status })
       return
     }
-    // 轮询期心跳：serverless sweep 与本地进程内线程都靠它互斥，避免双写完成态
-    await touchTask(record.id)
+    // 轮询期心跳 + 进度落库（兼作 sweep 心跳）
+    await writeProgress(record.id, { stage: 'poll', attempts: i + 1, lastPollAt: new Date().toISOString() })
     try {
       const { url, method, headers } = adapter.buildPollRequest(config, taskId)
       logTaskProgress(label, 'poll-request', {
@@ -412,6 +429,8 @@ async function pollTask(record: SysTaskRecord, config: AIConfig, taskId: string)
           }
         } else {
           notFoundStreak = 0
+          // 查询限流（如 Agnes 429「查询过于频繁」）：额外歇一轮，避免多任务轮询叠加持续触发限流
+          if (resp.status === 429) await new Promise(r => setTimeout(r, profile.intervalMs))
         }
         continue
       }
@@ -420,6 +439,13 @@ async function pollTask(record: SysTaskRecord, config: AIConfig, taskId: string)
 
       // 图片/视频 PollResponse 结构不同，这里统一按 any 取值后按 type 分支
       const pollResp: any = adapter.parsePollResponse(result)
+      // 非终态轮询结果随心跳落库：upstream 供前端区分「排队中/生成中」，percent 如实透传
+      if (pollResp.status !== 'completed' && pollResp.status !== 'failed') {
+        await writeProgress(record.id, {
+          upstream: String(pollResp.status || 'processing'),
+          ...(Number.isFinite(pollResp.percent) ? { percent: pollResp.percent } : {}),
+        })
+      }
 
       if (pollResp.status === 'completed') {
         if (type === 'image') {
@@ -730,6 +756,13 @@ async function pollTick(record: SysTaskRecord, config: AIConfig, taskId: string)
   }
   const result = await resp.json() as any
   const pollResp: any = adapter.parsePollResponse(result)
+  // 非终态轮询结果落库：任务列表/「查询进度」按钮即时可见
+  if (pollResp.status !== 'completed' && pollResp.status !== 'failed') {
+    await writeProgress(record.id, {
+      upstream: String(pollResp.status || 'processing'),
+      ...(Number.isFinite(pollResp.percent) ? { percent: pollResp.percent } : {}),
+    })
+  }
 
   if (pollResp.status === 'completed') {
     if (type === 'image') {
@@ -871,4 +904,31 @@ export async function retryTask(id: number): Promise<number> {
     watermark: p.watermark,
     configId,
   })
+}
+
+export type RefreshOutcome = 'processing' | 'completed' | 'failed' | 'not-eligible'
+
+/**
+ * 主动查询上游进度（用户点「查询进度」）：对有上游 taskId 的进行中任务执行单次 pollTick。
+ * 与进程内轮询并发安全——完成回写有 processing 守卫，先到先得，后到方跳过回写。
+ * not-eligible：已终态，或仍在提交期（尚无上游 taskId）。
+ */
+export async function refreshTask(id: number): Promise<{ record: SysTaskRecord | null; outcome: RefreshOutcome }> {
+  const [r] = await db.select().from(schema.sysTask).where(eq(schema.sysTask.id, id))
+  if (!r) throw new Error('任务不存在')
+  if (r.status !== 'processing' || !r.taskId) return { record: r, outcome: 'not-eligible' }
+  const p = parseTaskParams(r.params)
+  const config = (typeof p.__configId === 'number' ? await getConfigById(p.__configId) : null)
+    ?? await getActiveConfig(r.type as TaskType)
+  if (!config) throw new Error('AI 服务配置已删除或未启用，无法查询上游进度')
+  let outcome: 'processing' | 'completed' | 'failed' = 'processing'
+  try {
+    outcome = await pollTick(r, config, r.taskId)
+  } catch (err: any) {
+    logTaskWarn(taskLabel(r.type as TaskType), 'refresh-error', { id, error: err.message })
+    await writeProgress(id, { detail: err.message })
+  }
+  if (outcome === 'processing') await touchTask(id)
+  const [fresh] = await db.select().from(schema.sysTask).where(eq(schema.sysTask.id, id))
+  return { record: fresh ?? r, outcome }
 }

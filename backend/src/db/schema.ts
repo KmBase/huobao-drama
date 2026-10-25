@@ -202,9 +202,10 @@ export const stylePresets = sqliteTable('style_presets', {
 // 统一生成任务表：图片/视频生成共用，type 区分，生成参数存 params(JSON)
 export const sysTask = sqliteTable('sys_task', {
   id: integer('id').primaryKey({ autoIncrement: true }),
-  type: text('type').notNull(), // image | video
+  type: text('type').notNull(), // image | video | text
   storyboardId: integer('storyboard_id'),
   dramaId: integer('drama_id'),
+  episodeId: integer('episode_id'),
   sceneId: integer('scene_id'),
   characterId: integer('character_id'),
   propId: integer('prop_id'),
@@ -219,6 +220,8 @@ export const sysTask = sqliteTable('sys_task', {
   localPath: text('local_path'),
   status: text('status').default('processing'),
   errorMsg: text('error_msg'),
+  // 生命周期进度 JSON：{stage, attempts, lastPollAt, detail}（轮询循环/主动查询时更新）
+  progress: text('progress'),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
   completedAt: text('completed_at'),

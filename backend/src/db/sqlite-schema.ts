@@ -208,6 +208,7 @@ export const sqliteSchemaStatements = [
     type TEXT NOT NULL,
     storyboard_id INTEGER,
     drama_id INTEGER,
+    episode_id INTEGER,
     scene_id INTEGER,
     character_id INTEGER,
     prop_id INTEGER,
@@ -220,6 +221,7 @@ export const sqliteSchemaStatements = [
     local_path TEXT,
     status TEXT DEFAULT 'processing',
     error_msg TEXT,
+    progress TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     completed_at TEXT
@@ -411,6 +413,8 @@ export function initSqliteSchema(sqlite: Database.Database) {
   }
   // 存量库升级：CREATE TABLE IF NOT EXISTS 不会给已存在的表补列，新字段必须走幂等 ALTER
   ensureColumn(sqlite, 'ai_service_configs', 'protocol', 'TEXT', LEGACY_PROTOCOL_BACKFILL_SQL)
+  ensureColumn(sqlite, 'sys_task', 'progress', 'TEXT')
+  ensureColumn(sqlite, 'sys_task', 'episode_id', 'INTEGER')
 
   const insertSeed = sqlite.prepare(SEED_SQL)
   const upgradeSeed = sqlite.prepare(UPGRADE_SQL)
@@ -453,6 +457,8 @@ export async function initLibsqlSchema(client: Client) {
   }
   // 存量库升级：同 better-sqlite3 路径，幂等补列
   await ensureColumnLibsql(client, 'ai_service_configs', 'protocol', 'TEXT', LEGACY_PROTOCOL_BACKFILL_SQL)
+  await ensureColumnLibsql(client, 'sys_task', 'progress', 'TEXT')
+  await ensureColumnLibsql(client, 'sys_task', 'episode_id', 'INTEGER')
 
   for (const s of stylePresetSeeds) {
     const ts = new Date().toISOString()

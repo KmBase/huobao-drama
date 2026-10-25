@@ -4,6 +4,7 @@
   </NuxtLayout>
   <Toaster position="top-right" :duration="3000" :theme="resolvedTheme" />
   <MigrateOverlay />
+  <AccessLock />
 </template>
 
 <script setup lang="ts">
@@ -11,6 +12,7 @@ import { onMounted } from 'vue'
 import { Toaster, toast } from 'vue-sonner'
 import { useI18n } from 'vue-i18n'
 import MigrateOverlay from '~/components/MigrateOverlay.vue'
+import AccessLock from '~/components/AccessLock.vue'
 import { useDesktopBridge } from '~/composables/useDesktopBridge'
 import { useMigrateState } from '~/composables/useMigrateState'
 import { useTheme } from '~/composables/useTheme'

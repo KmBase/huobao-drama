@@ -1,6 +1,6 @@
 <template>
   <Teleport to="body">
-    <div v-if="open" class="overlay" @click.self="emit('cancel')">
+    <div v-if="open" class="overlay" :style="{ zIndex }" @click.self="emit('cancel')">
       <div class="dialog confirm-dialog" role="alertdialog" aria-modal="true" :aria-label="effectiveTitle">
         <div class="confirm-icon">
           <Trash2 :size="20" :stroke-width="1.8" />
@@ -33,6 +33,8 @@ const props = defineProps({
   confirmText: { type: String, default: '' },
   loadingText: { type: String, default: '' },
   loading: { type: Boolean, default: false },
+  // 全局 .overlay 默认 z-index 100；在更高层容器（如任务抽屉 118）之上打开时需显式调高
+  zIndex: { type: Number, default: 100 },
 })
 
 const emit = defineEmits(['confirm', 'cancel'])

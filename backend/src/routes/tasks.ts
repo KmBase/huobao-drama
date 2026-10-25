@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { and, desc, eq, inArray, like, ne, sql } from 'drizzle-orm'
 import { db, schema } from '../db/index.js'
 import { success, created, badRequest } from '../utils/response.js'
-import { generateImage, generateVideo, sweepProcessingTasks, cancelTask, retryTask } from '../services/generation.js'
+import { generateImage, generateVideo, sweepProcessingTasks, cancelTask, retryTask, refreshTask } from '../services/generation.js'
 import { getActiveConfig, getConfigById } from '../services/ai.js'
 import { getDramaStylePrompt } from '../services/style-preset.js'
 import { logTaskError, logTaskPayload, logTaskStart, logTaskSuccess } from '../utils/task-logger.js'
@@ -281,6 +281,19 @@ app.post('/:id/retry', async (c) => {
     return created(c, record)
   } catch (err: any) {
     logTaskError('TaskAPI', 'retry', { originId: id, error: err.message })
+    return badRequest(c, err.message)
+  }
+})
+
+// POST /tasks/:id/refresh — 用户主动查询上游进度：单次 pollTick 推进状态并返回最新行
+app.post('/:id/refresh', async (c) => {
+  const id = Number(c.req.param('id'))
+  if (!Number.isFinite(id)) return badRequest(c, '无效的任务 ID')
+  try {
+    const { record, outcome } = await refreshTask(id)
+    return success(c, { task: record, outcome })
+  } catch (err: any) {
+    logTaskError('TaskAPI', 'refresh', { id, error: err.message })
     return badRequest(c, err.message)
   }
 })

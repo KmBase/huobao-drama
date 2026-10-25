@@ -1,4 +1,12 @@
 {
+  "access": {
+    "title": "アクセスパスワード",
+    "desc": "このサイトはアクセスパスワードで保護されています。パスワードを入力してロックを解除してください。",
+    "placeholder": "アクセスパスワードを入力",
+    "unlock": "ロック解除",
+    "unlocking": "確認中…",
+    "wrongPassword": "パスワードが違います"
+  },
   "app": {
     "title": "火宝ショートドラマ",
     "updateAvailable": "新バージョン v{version} があります。「設定 → 更新について」でアップグレードできます"
@@ -366,10 +374,25 @@
       "autoStart": "アプリ起動時に開始",
       "autoStartSub": "アプリの起動と準備が完了したら自動的にトンネルを開きます（先にこのページの設定を保存してください）",
       "log": "実行ログ",
-      "risk": "セキュリティ注意：クイックトンネルはサイト全体を転送します — /api/v1/* も公開インターネットに露出します（現在バックエンドに認証はありません）。Cloudflare ingress で /static/* のみに制限したネームドトンネルを推奨します。",
+      "risk": "セキュリティ注意：クイックトンネルはサイト全体を転送します — /api/v1/* も公開インターネットに露出します（上のアクセスパスワードを有効にしていない場合、認証はありません）。Cloudflare ingress で /static/* のみに制限したネームドトンネルを推奨します。",
       "invalidUrl": "http:// または https:// で始まる完全な URL を入力してください",
       "manualSaved": "公開メディア URL を保存しました",
       "manualCleared": "公開メディア URL をクリアしました"
+    },
+    "access": {
+      "title": "アクセスパスワード",
+      "sub": "リモートアクセスにパスワードを追加します。有効にするとページ表示前にパスワード入力が必要で、API とメディアファイルも保護されます",
+      "password": "アクセスパスワード",
+      "on": "有効",
+      "off": "無効",
+      "placeholder": "アクセスパスワードを設定（4 文字以上）",
+      "replacePlaceholder": "変更する場合は新しいパスワードを入力。空のまま保存すると解除されます",
+      "save": "パスワードを保存",
+      "tooShort": "パスワードは 4 文字以上にしてください",
+      "confirmClear": "アクセスパスワードを解除しますか？解除後は誰でもこのサイトにアクセスできます。",
+      "saved": "アクセスパスワードを有効にしました",
+      "cleared": "アクセスパスワードを解除しました",
+      "hint": "平文は保存されず、ダイジェストのみ保持します。変更すると既存のセッションは無効になります。ローカル/LAN からも入力が必要です。"
     },
     "about": {
       "title": "更新について",
@@ -856,7 +879,28 @@
       "clear": "クリア",
       "clearConfirm": "終了したタスク記録 {n} 件をクリアしますか？実行中のタスクには影響せず、生成済みメディアファイルは保持されます。",
       "cleared": "{n} 件のタスク記録をクリアしました",
-      "retried": "生成タスクを再送信しました"
+      "retried": "生成タスクを再送信しました",
+      "actionProbe": "進行状況を確認",
+      "probeCompleted": "上流が完了し、結果を保存しました",
+      "probeFailed": "上流が失敗を返しました",
+      "probeProcessing": "上流はまだ生成中です",
+      "probeSubmitted": "タスクは送信中です。しばらくしてからもう一度お試しください",
+      "stageSubmit": "送信中",
+      "stagePoll": "上流の応答待ち",
+      "progressLine": "{n} 回ポーリング済み",
+      "progressPercent": "生成済み {p}%",
+      "stageQueued": "待機中 · {m} 分経過",
+      "expandHint": "クリックで詳細を表示",
+      "detailPrompt": "プロンプト",
+      "detailSpecs": "パラメータ",
+      "detailUpstream": "上流タスク ID",
+      "detailCreated": "作成日時",
+      "detailCompleted": "完了日時",
+      "refImages": "画像 ×{n}",
+      "refVideos": "動画 ×{n}",
+      "refAudios": "音声 ×{n}",
+      "refFrames": "キーフレーム ×{n}",
+      "specDuration": "長さ {n}s"
     },
     "export": {
       "notReadyDesc": "先に分镜と制作の工程を完了してください",

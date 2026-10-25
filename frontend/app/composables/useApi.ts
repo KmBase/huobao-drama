@@ -14,6 +14,10 @@ async function req<T = any>(method: string, path: string, body?: any): Promise<T
 
     if (!resp.ok || (json.code && json.code >= 400)) {
       console.log(`%c[API] %c${method} ${path} %c${resp.status} %c${ms}ms`, 'color:#888', 'color:#ef5350', 'color:#ef5350;font-weight:bold', 'color:#888', json.message || '')
+      // 访问密码拦截：通知全局锁屏弹层（AccessLock 监听）
+      if (resp.status === 401 && json.message === 'UNAUTHORIZED') {
+        window.dispatchEvent(new CustomEvent('huobao:unauthorized'))
+      }
       throw new Error(json.message || `${resp.status}`)
     }
 
@@ -96,6 +100,7 @@ export const taskAPI = {
   del: (id: number) => api.del(`/tasks/${id}`),
   cancel: (id: number) => api.post(`/tasks/${id}/cancel`),
   retry: (id: number) => api.post(`/tasks/${id}/retry`),
+  refresh: (id: number) => api.post<{ task: any; outcome: string }>(`/tasks/${id}/refresh`),
   batchDelete: (ids: number[]) => api.post<{ deleted: number; skipped: number }>('/tasks/batch-delete', { ids }),
   clear: (scope: 'completed' | 'failed' | 'cancelled' | 'finished' = 'finished') =>
     api.post<{ deleted: number }>('/tasks/clear', { scope }),
@@ -232,6 +237,14 @@ export const stylePresetAPI = {
 
 export const storageAPI = {
   info: () => api.get('/storage'),
+}
+
+// 访问密码（远程访问口令）：登录种 httpOnly cookie，之后同源请求自动携带
+export const accessAPI = {
+  status: () => api.get<{ required: boolean; authed: boolean }>('/access/status'),
+  login: (password: string) => api.post<{ token: string | null }>('/access/login', { password }),
+  logout: () => api.post('/access/logout'),
+  setPassword: (password: string) => api.put<{ token: string | null }>('/access/password', { password }),
 }
 
 export const settingsAPI = {

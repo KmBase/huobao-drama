@@ -33,8 +33,9 @@ configs/   — 遗留死配置，代码零引用
 - `npm run build:backend` — esbuild 打包 backend/src → build/backend.mjs（ESM；externals: sharp/better-sqlite3/ffmpeg-static/ffprobe-static）
 - `npm run build:main` — 打包主进程 → dist/main.js
 - `npm run rebuild:native` — better-sqlite3 按 Electron ABI 重编（原生模块 ABI 变化后必须执行；postinstall 已自动做）
-- `npm run dist` — prepare-resources + electron-builder 出 arm64/x64 dmg → release/
-- `npm run dist:win` — 交叉打包 Windows NSIS 安装器（win-x64）；win 版 ffmpeg.exe 缓存在 build/win-bin/（缺失时脚本提示下载地址）
+- `npm run build:frontend` — 转到 frontend/ 执行 nuxt generate（dist 前置步骤，保证包内前端最新）
+- `npm run dist` — build:frontend + prepare-resources + electron-builder 出 arm64/x64 dmg → release/
+- `npm run dist:win` — 同 dist 流程出 Windows NSIS 安装器（win-x64，前端自动随包构建）；win 版 ffmpeg.exe 缓存在 build/win-bin/（缺失时脚本提示下载地址）
 
 ## Architecture
 

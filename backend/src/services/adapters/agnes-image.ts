@@ -142,15 +142,19 @@ export class AgnesImageAdapter implements ImageProviderAdapter {
     const status = String(result?.status || '').toLowerCase()
     const imageUrl = this.extractImageUrl(result)
     const progress = Number(result?.progress ?? 0)
+    // Agnes 进度只有两档：生成中恒 10，完成 100；缺省/异常值不透出
+    const percent = Number.isFinite(progress)
+      ? Math.max(0, Math.min(100, Math.round(progress)))
+      : undefined
     if (status === 'completed' || progress >= 100 || imageUrl) {
-      return { status: 'completed', imageUrl: imageUrl || undefined }
+      return { status: 'completed', imageUrl: imageUrl || undefined, percent: 100 }
     }
     if (status === 'failed' || status === 'cancelled') {
       const err = result?.error
       const msg = typeof err === 'string' ? err : (err?.message || JSON.stringify(err) || 'Image generation failed')
       return { status: 'failed', error: msg }
     }
-    return { status: 'processing' }
+    return { status: 'processing', percent }
   }
 
   extractImageUrl(result: any): string | null {

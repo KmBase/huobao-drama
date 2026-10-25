@@ -198,6 +198,10 @@
             </div>
             <div class="toolbar-right">
               <span v-if="scriptLen" class="char-count">{{ t('episode.script.charCount', { n: scriptLen }) }}</span>
+              <button v-if="scriptContent" class="btn btn-sm" @click="saveScr">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/></svg>
+                {{ t('common.save') }}
+              </button>
               <button v-if="rawContent" class="btn btn-sm" @click="skipRewrite">
                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14"/><path d="M13 18l6-6-6-6"/></svg>
                 {{ t('episode.script.skipRewrite') }}
@@ -1052,7 +1056,7 @@
               </div>
               <div class="video-task-main">
                 <div class="video-task-line">
-                  <strong class="video-task-name truncate">{{ row.targetLabel }}</strong>
+                  <strong class="video-task-name truncate task-name-clickable" :title="t('episode.tasks.expandHint')" @click.stop="toggleTaskExpand(row)">{{ row.targetLabel }}</strong>
                 </div>
                 <div class="video-task-meta-line">
                   <span class="video-task-loc truncate">{{ row.provider }}{{ row.model ? ' · ' + row.model : '' }}</span>
@@ -1060,12 +1064,46 @@
                     <span class="video-task-sep">·</span>
                     <span>{{ t('episode.tasks.duration', { dur: genTaskDuration(row) }) }}</span>
                   </template>
+                  <template v-if="genTaskProgressLine(row)">
+                    <span class="video-task-sep">·</span>
+                    <span class="task-progress-hint">{{ genTaskProgressLine(row) }}</span>
+                  </template>
                   <span class="video-task-sep">·</span>
                   <span>#{{ row.id }}</span>
+                </div>
+                <div
+                  v-if="row.status === 'processing'"
+                  class="task-progress-track"
+                  :class="{ indeterminate: !(row.progress?.percent > 0) }"
+                  :style="row.progress?.percent > 0 ? { '--p': row.progress.percent + '%' } : null"
+                >
+                  <div class="task-progress-fill" />
                 </div>
                 <div v-if="row.errorMsg" class="video-task-error" :title="row.errorMsg">
                   {{ mapError(row.errorMsg) }}
                   <div v-if="row.kind === 'video' && videoModerationHint(row.errorMsg)" class="video-task-error-hint">{{ videoModerationHint(row.errorMsg) }}</div>
+                </div>
+                <div v-if="expandedTaskKey === row.key" class="video-task-detail">
+                  <div v-if="row.prompt" class="task-detail-line">
+                    <span class="task-detail-label">{{ t('episode.tasks.detailPrompt') }}</span>
+                    <span class="task-detail-value">{{ row.prompt }}</span>
+                  </div>
+                  <div v-if="row.refSummary" class="task-detail-line">
+                    <span class="task-detail-label">{{ t('episode.tasks.detailSpecs') }}</span>
+                    <span class="task-detail-value">{{ row.refSummary }}</span>
+                  </div>
+                  <div v-if="row.upstreamId" class="task-detail-line">
+                    <span class="task-detail-label">{{ t('episode.tasks.detailUpstream') }}</span>
+                    <span class="task-detail-value mono">{{ row.upstreamId }}</span>
+                  </div>
+                  <div class="task-detail-line">
+                    <span class="task-detail-label">{{ t('episode.tasks.detailCreated') }}</span>
+                    <span class="task-detail-value">{{ genTaskFmtTime(row.createdAt) }}</span>
+                  </div>
+                  <div v-if="row.completedAt" class="task-detail-line">
+                    <span class="task-detail-label">{{ t('episode.tasks.detailCompleted') }}</span>
+                    <span class="task-detail-value">{{ genTaskFmtTime(row.completedAt) }}</span>
+                  </div>
                 </div>
                 <div v-if="row.kind !== 'merge' && genTaskRowActions(row).length" class="video-task-actions">
                   <button
@@ -1441,6 +1479,7 @@
         :open="taskConfirm.open"
         :title="taskConfirm.title"
         :message="taskConfirm.message"
+        :z-index="121"
         @confirm="runTaskConfirm"
         @cancel="taskConfirm.open = false"
       />
@@ -2276,11 +2315,16 @@ const genTaskFinishedCount = computed(() =>
   genTasks.value.filter(t => t.status !== 'processing').length
 )
 
-// 任务行操作：取消（进行中）/ 重试（失败、已取消）/ 删除（非进行中）
+// 任务行操作：查询进度/取消（进行中）/ 重试（失败、已取消）/ 删除（非进行中）
+// 文本任务为同步 Agent 请求，无上游可查/可取消/可重试，结束后仅可删除
 function genTaskRowActions(row) {
   if (row.kind === 'merge') return []
+  if (row.kind === 'text') {
+    return row.status === 'processing' ? [] : [{ key: 'delete', label: t('episode.tasks.actionDelete'), run: genTaskDelete }]
+  }
   const actions = []
   if (row.status === 'processing') {
+    actions.push({ key: 'probe', label: t('episode.tasks.actionProbe'), run: genTaskRefresh })
     actions.push({ key: 'cancel', label: t('episode.tasks.actionCancel'), run: genTaskCancel })
   } else {
     if (row.status === 'failed' || row.status === 'cancelled') {
@@ -2289,6 +2333,44 @@ function genTaskRowActions(row) {
     actions.push({ key: 'delete', label: t('episode.tasks.actionDelete'), run: genTaskDelete })
   }
   return actions
+}
+
+function toggleTaskExpand(row) {
+  expandedTaskKey.value = expandedTaskKey.value === row.key ? '' : row.key
+}
+
+/** 进行中任务的一行进度摘要：排队中(含等待时长) / 上游百分比 / 已轮询次数 */
+function genTaskProgressLine(row) {
+  if (row.status !== 'processing') return ''
+  if (row.kind === 'text') return t('episode.tasks.textRunning')
+  const p = row.progress
+  if (!p) return t('episode.tasks.stageSubmit')
+  if (p.stage === 'submit') return t('episode.tasks.stageSubmit')
+  if (p.upstream === 'pending' || p.upstream === 'queued') {
+    const started = new Date(row.createdAt).getTime()
+    const mins = Number.isFinite(started) ? Math.max(1, Math.round((Date.now() - started) / 60000)) : 0
+    if (mins) return t('episode.tasks.stageQueued', { m: mins })
+  }
+  if (p.percent > 0) return t('episode.tasks.progressPercent', { p: p.percent })
+  if (p.attempts) return t('episode.tasks.progressLine', { n: p.attempts })
+  return t('episode.tasks.stagePoll')
+}
+
+/** 用户主动向上游查一次进度（单次 pollTick，可能直接推进到完成/失败） */
+async function genTaskRefresh(row) {
+  try {
+    const r = await taskAPI.refresh(row.id)
+    const outcome = r?.outcome
+    if (outcome === 'completed') toast.success(t('episode.tasks.probeCompleted'))
+    else if (outcome === 'failed') toast.error(t('episode.tasks.probeFailed'))
+    else if (outcome === 'not-eligible') toast.info(t('episode.tasks.probeSubmitted'))
+    else toast.info(t('episode.tasks.probeProcessing'))
+    await loadGenTasks()
+  } catch (e) { toastError(e) }
+}
+
+function genTaskFmtTime(ts) {
+  return ts ? String(ts).replace('T', ' ').slice(0, 19) : ''
 }
 
 const taskConfirm = reactive({ open: false, title: '', message: '', run: null })
@@ -2349,6 +2431,16 @@ function genTaskClear() {
 }
 
 function genTaskTargetLabel(task) {
+  if (task.type === 'text') {
+    const agentType = (parseTaskProgress(task.params) || {}).agentType
+    const names = {
+      script_rewriter: t('settings.agents.scriptRewriter'),
+      extractor: t('settings.agents.extractor'),
+      storyboard_breaker: t('settings.agents.storyboardBreaker'),
+      prompt_generator: t('settings.agents.promptGenerator'),
+    }
+    return names[agentType] || t('common.serviceType.text')
+  }
   if (task.storyboard_id) {
     const sb = sbs.value.find(x => x.id === task.storyboard_id)
     return t('episode.tasks.sbN', { n: sb?.storyboard_number ?? sb?.storyboardNumber ?? task.storyboard_id })
@@ -2369,6 +2461,34 @@ function genTaskTargetLabel(task) {
 }
 
 // 统一行结构：image / video / merge 三类合并按时间倒序
+function parseTaskProgress(raw) {
+  if (!raw) return null
+  try { return JSON.parse(raw) } catch { return null }
+}
+const expandedTaskKey = ref('')
+
+// 注意：参数名不可用 t —— 会遮蔽外层 i18n 翻译函数（见 genTaskRows 内的历史注释）
+function genTaskRefSummary(task) {
+  const p = parseTaskProgress(task.params) || {}
+  const refs = []
+  const nImg = (p.referenceImages || []).length
+  const nVid = (p.referenceVideoUrls || []).length
+  const nAud = (p.referenceAudioUrls || []).length
+  const frames = [p.firstFrameUrl, p.lastFrameUrl].filter(Boolean).length
+  if (nImg) refs.push(t('episode.tasks.refImages', { n: nImg }))
+  if (nVid) refs.push(t('episode.tasks.refVideos', { n: nVid }))
+  if (nAud) refs.push(t('episode.tasks.refAudios', { n: nAud }))
+  if (frames) refs.push(t('episode.tasks.refFrames', { n: frames }))
+  const specs = []
+  if (task.type === 'video') {
+    if (p.duration) specs.push(t('episode.tasks.specDuration', { n: p.duration }))
+    if (p.aspectRatio) specs.push(p.aspectRatio)
+    if (p.resolution) specs.push(p.resolution)
+  }
+  if (task.type === 'image' && p.size) specs.push(p.size)
+  return [...refs, ...specs].join(' · ')
+}
+
 const genTaskRows = computed(() => {
   const taskRows = genTasks.value.map(t => ({
     key: `task-${t.id}`,
@@ -2383,6 +2503,9 @@ const genTaskRows = computed(() => {
     prompt: t.prompt || '',
     createdAt: t.created_at || '',
     completedAt: t.completed_at || '',
+    progress: parseTaskProgress(t.progress),
+    upstreamId: t.task_id || '',
+    refSummary: genTaskRefSummary(t),
   }))
   const mergeRows = genMerges.value.map(m => ({
     key: `merge-${m.id}`,
@@ -2402,7 +2525,7 @@ const genTaskRows = computed(() => {
 })
 
 function genTaskKindLabel(kind) {
-  return kind === 'image' ? t('common.serviceType.image') : kind === 'video' ? t('common.serviceType.video') : t('episode.tasks.mergeKind')
+  return kind === 'image' ? t('common.serviceType.image') : kind === 'video' ? t('common.serviceType.video') : kind === 'text' ? t('common.serviceType.text') : t('episode.tasks.mergeKind')
 }
 
 function genTaskStatusLabel(status) {
@@ -2742,7 +2865,11 @@ async function refresh() {
 }
 
 function saveRaw() { episodeAPI.update(epId.value, { content: localRaw.value }); episode.value.content = localRaw.value }
-function saveScr() { episodeAPI.update(epId.value, { script_content: localScript.value }); episode.value.script_content = localScript.value }
+async function saveScr() {
+  await episodeAPI.update(epId.value, { script_content: localScript.value })
+  episode.value.script_content = localScript.value
+  toast.success(t('episode.script.saved'))
+}
 // 发给 Agent 的 message 是功能性提示词而非 UI 文案：产出语言由后端全局「内容语言」指令控制，
 // 这里保持中文不随界面语言变化
 function doRewrite() { saveRaw(); runAgent('script_rewriter', '请读取剧本并改写为格式化剧本，然后保存', dramaId, epId.value, refresh, chatModelOverride(), chatConfigId()) }
@@ -6079,6 +6206,66 @@ button.video-task-metric.on { box-shadow: 0 0 0 2px var(--accent); }
   padding: 3px 10px;
   font-size: 11px;
   line-height: 1.4;
+}
+/* 行名可点击展开详情 */
+.task-name-clickable {
+  cursor: pointer;
+}
+.task-name-clickable:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.task-progress-hint {
+  color: var(--text-muted, #8a8f98);
+}
+/* 进行中任务的进度条：有上游百分比按宽度填充，无则不确定滑动动画 */
+.task-progress-track {
+  margin-top: 6px;
+  height: 3px;
+  border-radius: 99px;
+  background: var(--surface-outline);
+  overflow: hidden;
+}
+.task-progress-fill {
+  height: 100%;
+  width: var(--p, 0%);
+  border-radius: 99px;
+  background: var(--accent);
+  transition: width 0.6s ease;
+}
+.task-progress-track.indeterminate .task-progress-fill {
+  width: 35%;
+  animation: task-progress-slide 1.4s ease-in-out infinite;
+}
+@keyframes task-progress-slide {
+  0% { margin-left: -35%; }
+  100% { margin-left: 100%; }
+}
+/* 展开的任务详情块 */
+.video-task-detail {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--surface-outline);
+  border-radius: 8px;
+  background: var(--surface-bg, rgba(0, 0, 0, 0.03));
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.task-detail-line {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 11px;
+}
+.task-detail-label {
+  color: var(--text-muted, #8a8f98);
+}
+.task-detail-value {
+  word-break: break-all;
+  white-space: pre-wrap;
+  max-height: 120px;
+  overflow-y: auto;
 }
 .task-drawer-metrics {
   padding: 10px 16px;

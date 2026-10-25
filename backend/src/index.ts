@@ -21,27 +21,29 @@ import merge from './routes/merge.js'
 import skills from './routes/skills.js'
 import props from './routes/props.js'
 import settings from './routes/settings.js'
+import access from './routes/access.js'
 import capabilities from './routes/capabilities.js'
 import storage from './routes/storage.js'
 import serverUpdate from './routes/serverUpdate.js'
 import { requestLogger, errorHandler } from './middleware/logger.js'
 import { db, schema, affectedRows } from './db/index.js'
 import { eq } from 'drizzle-orm'
+import { getCookie } from 'hono/cookie'
 import { now } from './utils/response.js'
 import { DATA_ROOT } from './utils/paths.js'
 import { IS_SERVERLESS } from './utils/runtime-mode.js'
 import { blobUrlFor } from './utils/storage.js'
+import { hasAccessPassword, isTokenValid, ACCESS_COOKIE } from './services/access-auth.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const projectRoot = path.resolve(__dirname, '../..')
 
 const app = new Hono()
 
-// Middleware
-app.use('*', cors({
-  origin: ['http://localhost:3013', 'http://localhost:5679'],
-  credentials: true,
-}))
+// CORS：页面源无法枚举——桌面窗口是 http://127.0.0.1:5679（与 localhost:5679 不同源），
+// 隧道域名动态分配（*.trycloudflare.com）或用户自有命名域名；API 无鉴权无 cookie
+//（credentials 关闭，ACAO:* 符合规范），故放开为全源。跨源读取风险已在隧道开关处提示。
+app.use('*', cors())
 app.use('*', requestLogger)
 app.use('*', errorHandler)
 
@@ -51,6 +53,26 @@ app.get('/api/v1/health', (c) => c.json({
   version: process.env.HUOBAO_VERSION || undefined,
   timestamp: new Date().toISOString(),
 }))
+
+// 访问密码鉴权：启用后拦截 /api/* 与 /static/*（前端 HTML 放行，锁屏交互在 SPA 内完成）。
+// 令牌来源优先级：cookie（页面请求自动携带）> x-access-token 头 > ?token= 查询参数（外链下载用）。
+// 登录/状态接口与 health 豁免，否则用户会被锁死在外。
+app.use('/api/*', async (c, next) => {
+  const path = new URL(c.req.url).pathname
+  if (path === '/api/v1/health' || path.startsWith('/api/v1/access/')) return next()
+  if (!(await hasAccessPassword())) return next()
+  const token = getCookie(c, ACCESS_COOKIE) || c.req.header('x-access-token')
+    || new URL(c.req.url).searchParams.get('token') || undefined
+  if (await isTokenValid(token)) return next()
+  return c.json({ code: 401, message: 'UNAUTHORIZED' }, 401)
+})
+app.use('/static/*', async (c, next) => {
+  if (!(await hasAccessPassword())) return next()
+  const token = getCookie(c, ACCESS_COOKIE) || c.req.header('x-access-token')
+    || new URL(c.req.url).searchParams.get('token') || undefined
+  if (await isTokenValid(token)) return next()
+  return c.json({ code: 401, message: 'UNAUTHORIZED' }, 401)
+})
 
 // API routes
 const api = new Hono()
@@ -71,17 +93,16 @@ api.route('/skills', skills)
 api.route('/props', props)
 api.route('/storage', storage)
 api.route('/settings', settings)
+api.route('/access', access)
 api.route('/capabilities', capabilities)
 api.route('/server-update', serverUpdate)
 
 app.route('/api/v1', api)
 
 // Serve static files (storage)
-// 生成的图片/视频按 uuid 命名、内容不变，标记为 immutable 让浏览器长缓存
-app.use('/static/*', async (c, next) => {
-  await next()
-  if (c.res.ok) c.header('Cache-Control', 'public, max-age=31536000, immutable')
-})
+// 生成的图片/视频按 uuid 命名、内容不变，命中文件时在返回的 Response 上直接加
+// immutable 长缓存。不能事后读 c.res 判断：404 时 serveStatic 不落响应，
+// 中途读 c.res 会触发 hono 懒响应合并异常，把本应 404 的请求变成 500。
 // serverless 形态：媒体在 Vercel Blob，按规范相对路径 302 到 Blob URL（DB 存的 static/... 引用不变）
 app.use('/static/*', async (c) => {
   if (IS_SERVERLESS) {
@@ -93,7 +114,11 @@ app.use('/static/*', async (c) => {
       return c.notFound()
     }
   }
-  return serveStatic({ root: DATA_ROOT })(c, async () => {})
+  const res = await serveStatic({ root: DATA_ROOT })(c, async () => {})
+  if (res && res.status === 200) res.headers.set('Cache-Control', 'public, max-age=31536000, immutable')
+  // 未命中必须显式返回已定型的 404：若放任返回 undefined，外层 cors 等中间件读 c.res
+  // 会先触发懒响应，hono 兜底 404 再经 setter 合并路径时会抛 RangeError（500）
+  return res ?? c.notFound()
 })
 
 // Serve frontend (production build) — 桌面版由主进程注入 FRONTEND_DIST（resources/frontend）

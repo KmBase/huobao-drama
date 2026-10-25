@@ -32,8 +32,9 @@ function normalizeSegment(segment: string) {
 /**
  * URL-only 协议的媒体参数校验：只接受 http(s) 绝对地址。
  *
- * 背景：Agnes 全系（图片参考、视频首尾帧、参考图、参考音频）都只收"可由其服务公开访问"
- * 的 URL，官方文档明确不接受 Base64 Data URI。提前拦下可以避免白跑一次计费调用。
+ * 背景：本协议簇按 public-url 传输形态工作——本地素材先经隧道 / 反代解析为公网地址再提交。
+ * 实测 Agnes 视频 / 图片提交端也能接受 Base64 Data URI（2026-10 验证），但为保持单一传输
+ * 形态、避免多图叠加出超大请求体，这里仍拦下 data: 形态并提示走公网地址。
  *
  * @param value 待校验值（空值跳过）
  * @param label 报错用的中文参数名，如「首帧图片」「参考图片」

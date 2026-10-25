@@ -1,4 +1,12 @@
 {
+  "access": {
+    "title": "访问密码",
+    "desc": "本站已开启访问密码，请输入密码解锁",
+    "placeholder": "输入访问密码",
+    "unlock": "解锁",
+    "unlocking": "验证中…",
+    "wrongPassword": "密码错误"
+  },
   "app": {
     "title": "火宝短剧",
     "updateAvailable": "发现新版本 v{version}，可在「设置 → 关于更新」中升级"
@@ -366,10 +374,25 @@
       "autoStart": "随应用启动",
       "autoStartSub": "应用启动并就绪后自动开启隧道（需要先保存本页配置）",
       "log": "运行日志",
-      "risk": "安全提示：快速隧道会整站转发，后端 /api/v1/* 将一并暴露到公网（当前后端无鉴权）。建议改用命名隧道并在 Cloudflare ingress 仅放行 /static/*。",
+      "risk": "安全提示：快速隧道会整站转发，后端 /api/v1/* 将一并暴露到公网（未开启访问密码时无任何鉴权，可在上方开启）。建议改用命名隧道并在 Cloudflare ingress 仅放行 /static/*。",
       "invalidUrl": "必须是 http:// 或 https:// 开头的完整地址",
       "manualSaved": "公网媒体地址已保存",
       "manualCleared": "已清空公网媒体地址"
+    },
+    "access": {
+      "title": "访问密码",
+      "sub": "为远程访问加一道口令：启用后打开页面需先输入密码，API 与媒体文件一并受保护",
+      "password": "访问密码",
+      "on": "已启用",
+      "off": "未启用",
+      "placeholder": "设置访问密码（至少 4 位）",
+      "replacePlaceholder": "输入新密码以更换；留空并保存则清除密码",
+      "save": "保存密码",
+      "tooShort": "密码至少 4 位",
+      "confirmClear": "确定要清除访问密码吗？清除后任何人均可访问本站。",
+      "saved": "访问密码已启用",
+      "cleared": "访问密码已清除",
+      "hint": "密码仅存摘要不存明文；修改后旧登录会话自动失效。局域网/本机同样需要输入。"
     },
     "about": {
       "title": "关于更新",
@@ -847,6 +870,8 @@
       "duration": "耗时 {dur}",
       "sbN": "分镜 #{n}",
       "generic": "通用",
+      "textRunning": "Agent 执行中",
+      "textEmpty": "该 Agent 未产出文本结果",
       "fullMerge": "整集拼接",
       "mergeKind": "合并",
       "actionCancel": "取消",
@@ -856,7 +881,28 @@
       "clear": "清理",
       "clearConfirm": "确定清理 {n} 条已结束的任务记录？进行中的任务不受影响，已生成的媒体文件保留。",
       "cleared": "已清理 {n} 条任务记录",
-      "retried": "已重新提交生成任务"
+      "retried": "已重新提交生成任务",
+      "actionProbe": "查询进度",
+      "probeCompleted": "上游已完成，结果已回写",
+      "probeFailed": "上游返回失败",
+      "probeProcessing": "上游仍在生成中",
+      "probeSubmitted": "任务仍在提交中，稍候再试",
+      "stageSubmit": "提交中",
+      "stagePoll": "等待上游",
+      "progressLine": "已轮询 {n} 次",
+      "progressPercent": "已生成 {p}%",
+      "stageQueued": "排队中 · 已等待 {m} 分钟",
+      "expandHint": "点击查看详情",
+      "detailPrompt": "提示词",
+      "detailSpecs": "参数",
+      "detailUpstream": "上游任务 ID",
+      "detailCreated": "创建时间",
+      "detailCompleted": "完成时间",
+      "refImages": "图片 ×{n}",
+      "refVideos": "视频 ×{n}",
+      "refAudios": "音频 ×{n}",
+      "refFrames": "首尾帧 ×{n}",
+      "specDuration": "时长 {n}s"
     },
     "export": {
       "notReadyDesc": "请先完成分镜和制作流程",

@@ -238,6 +238,7 @@ app.get('/:id/generation-tasks', async (c) => {
   const allTasks = await db.select().from(schema.sysTask).where(eq(schema.sysTask.dramaId, ep.dramaId))
   const tasks = allTasks
     .filter(t =>
+      (t.episodeId && t.episodeId === episodeId) ||
       (t.storyboardId && storyboardIds.has(t.storyboardId)) ||
       (t.sceneId && sceneIds.has(t.sceneId)) ||
       (t.characterId && characterIds.has(t.characterId)) ||

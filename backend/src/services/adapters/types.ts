@@ -53,6 +53,16 @@ export interface ImageProviderAdapter {
 }
 
 /**
+ * parseGenerateResponse 的提交上下文：部分协议（如 Agnes）把轮询所需的模型名
+ * 随 taskId 一起打包（videoId::model），响应未回显模型名时用这里的实际提交值兜底
+ */
+export interface VideoGenContext {
+  config: AIConfig
+  /** 实际提交用的模型名（record.model || config.model，与 buildGenerateRequest 同源） */
+  model?: string | null
+}
+
+/**
  * 视频生成 Provider Adapter 接口
  */
 export interface VideoProviderAdapter {
@@ -63,7 +73,7 @@ export interface VideoProviderAdapter {
 
   buildGenerateRequest(config: AIConfig, record: VideoGenerationRecord): ProviderRequest
 
-  parseGenerateResponse(result: any): VideoGenResponse
+  parseGenerateResponse(result: any, ctx?: VideoGenContext): VideoGenResponse
 
   buildPollRequest(config: AIConfig, taskId: string): ProviderRequest
 
@@ -113,6 +123,8 @@ export interface VideoGenerationRecord {
   model?: string | null
   prompt?: string | null
   referenceMode?: string | null
+  /** 首帧策略：缺省=reference（多图参考，Agnes 队列延迟大）；'keyframe'=快车道（首张参考图作 first_frame，单图语义）；仅 Agnes 适配器消费 */
+  frameMode?: string | null
   imageUrl?: string | null
   firstFrameUrl?: string | null
   lastFrameUrl?: string | null
@@ -142,6 +154,8 @@ export interface ImagePollResponse {
   status: 'pending' | 'processing' | 'completed' | 'failed'
   imageUrl?: string
   error?: string
+  /** 上游返回的进度百分比 0-100（如 Agnes），无则缺省 */
+  percent?: number
 }
 
 export interface VideoGenResponse {
@@ -155,4 +169,6 @@ export interface VideoPollResponse {
   videoUrl?: string
   duration?: number
   error?: string
+  /** 上游返回的进度百分比 0-100（如 Agnes），无则缺省 */
+  percent?: number
 }

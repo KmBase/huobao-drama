@@ -1,4 +1,12 @@
 {
+  "access": {
+    "title": "Access Password",
+    "desc": "This site is protected by an access password. Enter it to unlock.",
+    "placeholder": "Enter access password",
+    "unlock": "Unlock",
+    "unlocking": "Verifying…",
+    "wrongPassword": "Incorrect password"
+  },
   "app": {
     "title": "Huobao Shorts",
     "updateAvailable": "New version v{version} is available. Upgrade in Settings → About."
@@ -366,10 +374,25 @@
       "autoStart": "Start with App",
       "autoStartSub": "Open the tunnel automatically after the app is up and ready (save this page's config first)",
       "log": "Logs",
-      "risk": "Security notice: a quick tunnel forwards the whole site — /api/v1/* will be exposed to the public internet (the backend currently has no auth). Prefer a named tunnel limited to /static/* via Cloudflare ingress.",
+      "risk": "Security notice: a quick tunnel forwards the whole site — /api/v1/* will be exposed to the public internet (no protection unless the access password above is enabled). Prefer a named tunnel limited to /static/* via Cloudflare ingress.",
       "invalidUrl": "Must be a full URL starting with http:// or https://",
       "manualSaved": "Public media URL saved",
       "manualCleared": "Public media URL cleared"
+    },
+    "access": {
+      "title": "Access Password",
+      "sub": "Add a passphrase for remote access: once enabled, the page asks for the password first, and both the API and media files are protected",
+      "password": "Access password",
+      "on": "Enabled",
+      "off": "Disabled",
+      "placeholder": "Set an access password (min 4 characters)",
+      "replacePlaceholder": "Enter a new password to change it; save empty to clear",
+      "save": "Save password",
+      "tooShort": "Password must be at least 4 characters",
+      "confirmClear": "Clear the access password? Anyone will be able to access this site.",
+      "saved": "Access password enabled",
+      "cleared": "Access password cleared",
+      "hint": "Only a digest is stored, never the plain text; changing it invalidates existing sessions. Local/LAN visitors must enter it too."
     },
     "about": {
       "title": "About & Updates",
@@ -847,6 +870,8 @@
       "duration": "took {dur}",
       "sbN": "Shot #{n}",
       "generic": "General",
+      "textRunning": "Agent running",
+      "textEmpty": "This agent produced no text result",
       "fullMerge": "Full-episode merge",
       "mergeKind": "Merge",
       "actionCancel": "Cancel",
@@ -856,7 +881,28 @@
       "clear": "Clear",
       "clearConfirm": "Clear {n} finished task records? Running tasks are unaffected and generated media files are kept.",
       "cleared": "Cleared {n} task records",
-      "retried": "Generation task resubmitted"
+      "retried": "Generation task resubmitted",
+      "actionProbe": "Check progress",
+      "probeCompleted": "Upstream finished — result saved",
+      "probeFailed": "Upstream reported failure",
+      "probeProcessing": "Upstream is still generating",
+      "probeSubmitted": "Task is still submitting — try again shortly",
+      "stageSubmit": "Submitting",
+      "stagePoll": "Waiting for upstream",
+      "progressLine": "polled {n} times",
+      "progressPercent": "{p}% generated",
+      "stageQueued": "Queued · waiting {m} min",
+      "expandHint": "Click for details",
+      "detailPrompt": "Prompt",
+      "detailSpecs": "Parameters",
+      "detailUpstream": "Upstream task ID",
+      "detailCreated": "Created",
+      "detailCompleted": "Completed",
+      "refImages": "{n} images",
+      "refVideos": "{n} videos",
+      "refAudios": "{n} audios",
+      "refFrames": "{n} keyframes",
+      "specDuration": "{n}s"
     },
     "export": {
       "notReadyDesc": "Please finish the storyboard and production steps first",

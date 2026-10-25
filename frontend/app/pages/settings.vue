@@ -306,6 +306,36 @@
             </div>
           </section>
 
+          <!-- 访问密码（远程访问口令） -->
+          <section class="card svc-group">
+            <div class="svc-group-head">
+              <div class="svc-group-heading">
+                <span class="svc-group-title">{{ t('settings.access.title') }}</span>
+                <div class="svc-group-sub">{{ t('settings.access.sub') }}</div>
+              </div>
+              <button class="btn btn-primary btn-sm ml-auto" :disabled="accessSaving" @click="saveAccessPassword">
+                <Check :size="13" /> {{ t('settings.access.save') }}
+              </button>
+            </div>
+            <div class="config-row">
+              <div class="provider-badge" style="background:var(--accent-bg);color:var(--accent)"><Lock :size="15" /></div>
+              <div class="config-main">
+                <div class="config-line">
+                  <span class="config-name">{{ t('settings.access.password') }}</span>
+                  <span class="tag" :style="accessEnabled ? 'color:var(--ok,#2e7d32)' : ''">{{ accessEnabled ? t('settings.access.on') : t('settings.access.off') }}</span>
+                </div>
+                <input
+                  v-model="accessPassword"
+                  class="input"
+                  type="password"
+                  autocomplete="new-password"
+                  :placeholder="accessEnabled ? t('settings.access.replacePlaceholder') : t('settings.access.placeholder')"
+                />
+                <div class="config-sub">{{ t('settings.access.hint') }}</div>
+              </div>
+            </div>
+          </section>
+
           <!-- 内网穿透（桌面版内置 cloudflared） -->
           <section v-if="isDesktopMode" class="card svc-group">
             <div class="svc-group-head">
@@ -831,12 +861,12 @@
 </template>
 
 <script setup>
-import { Plus, Pencil, Trash2, FileText, ChevronDown, Check, Loader2, Bot, Cpu, Sparkles, Palette, ExternalLink, Star, HardDrive, Database, RefreshCw, Download, Languages, SunMoon, X, ArrowUp, ArrowDown, Globe, Radio, Waypoints, KeyRound, Gauge, Rocket } from 'lucide-vue-next'
+import { Plus, Pencil, Trash2, FileText, ChevronDown, Check, Loader2, Bot, Cpu, Sparkles, Palette, ExternalLink, Star, HardDrive, Database, RefreshCw, Download, Languages, SunMoon, X, ArrowUp, ArrowDown, Globe, Radio, Waypoints, KeyRound, Gauge, Rocket, Lock } from 'lucide-vue-next'
 import BaseSelect from '~/components/BaseSelect.vue'
 import { toast } from 'vue-sonner'
 import { toastError } from '~/composables/useToast'
 import { useI18n } from 'vue-i18n'
-import { aiConfigAPI, aiProvidersAPI, promptAPI, skillsAPI, storageAPI, stylePresetAPI, settingsAPI, serverUpdateAPI } from '~/composables/useApi'
+import { aiConfigAPI, aiProvidersAPI, promptAPI, skillsAPI, storageAPI, stylePresetAPI, settingsAPI, serverUpdateAPI, accessAPI } from '~/composables/useApi'
 import { useDesktopBridge } from '~/composables/useDesktopBridge'
 import { useMigrateState } from '~/composables/useMigrateState'
 import { useTheme } from '~/composables/useTheme'
@@ -1259,7 +1289,7 @@ async function setContentLanguage(lang) {
   await confirmUnifiedLanguage(lang)
 }
 onMounted(loadContentLanguage)
-onMounted(() => { if (!isDesktopMode.value) loadPublicMedia(); loadTunnel() })
+onMounted(() => { if (!isDesktopMode.value) loadPublicMedia(); loadTunnel(); loadAccessPassword() })
 
 // agent type 用下划线（script_rewriter），skill 目录按 Mastra 规范用连字符（script-rewriter）
 const skillDirOf = (type) => type.replace(/_/g, '-')
@@ -1513,6 +1543,38 @@ async function loadTunnel() {
   const cfg = await desktopBridge.getTunnelConfig()
   Object.assign(tunnelForm, cfg)
   desktopBridge.onTunnelState((state) => { tunnelState.value = state })
+}
+
+// ===== 访问密码（远程访问口令） =====
+const accessEnabled = ref(false)
+const accessPassword = ref('')
+const accessSaving = ref(false)
+
+async function loadAccessPassword() {
+  try {
+    const s = await accessAPI.status()
+    accessEnabled.value = !!s.required
+  } catch { /* 设置页不阻塞 */ }
+}
+
+async function saveAccessPassword() {
+  const value = accessPassword.value.trim()
+  if (value && value.length < 4) {
+    toast.error(t('settings.access.tooShort'))
+    return
+  }
+  if (!value && !window.confirm(t('settings.access.confirmClear'))) return
+  accessSaving.value = true
+  try {
+    await accessAPI.setPassword(value)
+    accessEnabled.value = !!value
+    accessPassword.value = ''
+    toast.success(value ? t('settings.access.saved') : t('settings.access.cleared'))
+  } catch (e) {
+    toastError(e)
+  } finally {
+    accessSaving.value = false
+  }
 }
 
 async function persistTunnelConfig() {
