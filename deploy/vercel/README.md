@@ -24,8 +24,8 @@ serverless 形态的部署说明。同一代码库支持三种形态：桌面（
 
 | 变量 | 必填 | 说明 |
 |---|---|---|
-| `DATABASE_URL` | ✅ | Turso 连接串（`libsql://xxx.turso.io`） |
-| `DATABASE_AUTH_TOKEN` | ✅ | Turso 访问令牌 |
+| `DATABASE_URL` | ✅ | Turso 连接串（`libsql://xxx.turso.io`）。经 Vercel Storage 市场绑定 Turso 的，注入的 `TURSO_DATABASE_URL`/`TURSO_AUTH_TOKEN` 会被自动识别，无需再配镜像变量 |
+| `DATABASE_AUTH_TOKEN` | ✅ | Turso 访问令牌（同上，`TURSO_AUTH_TOKEN` 兼容） |
 | `BLOB_READ_WRITE_TOKEN` | ✅ | Vercel Blob 读写令牌（Storage 集成自动注入） |
 | `CRON_SECRET` | ✅ | sweep 端点鉴权，任意随机串（`openssl rand -base64 32`） |
 | `HUOBAO_SERVERLESS` | ✅ | 固定 `1`，开启 serverless 行为分支 |

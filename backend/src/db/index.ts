@@ -22,7 +22,9 @@ const repoRoot = path.resolve(__dirname, '../../..')
 // 注意：勿沿用旧文件名 huobao_drama.db —— 那是早期 SQLite 时代的遗留库，表名重叠但列不同
 export const dbPath = process.env.SQLITE_PATH || path.join(repoRoot, 'data', 'huobao.sqlite3')
 
-const databaseUrl = (process.env.DATABASE_URL || '').trim()
+// DATABASE_URL 优先；兼容 Vercel Storage 市场 Turso 集成自动注入的 TURSO_* 命名，
+// 绑定存储后无需手动再配同名镜像变量
+const databaseUrl = (process.env.DATABASE_URL || process.env.TURSO_DATABASE_URL || '').trim()
 // libsql:/wss:/https: → Turso 等远端；file: → libSQL 本地文件模式（无原生依赖，
 // 供本地/CI 端到端验证 libSQL 分支，无需真实 Turso 实例）
 const useLibsql = /^(libsql|wss|https?|file):/i.test(databaseUrl)
@@ -43,7 +45,7 @@ if (useLibsql) {
   ])
   const client = createClient({
     url: databaseUrl,
-    authToken: process.env.DATABASE_AUTH_TOKEN || undefined,
+    authToken: process.env.DATABASE_AUTH_TOKEN || process.env.TURSO_AUTH_TOKEN || undefined,
   })
   // 启动建表（幂等 DDL + 种子补缺）；libSQL 无连接就绪问题，首次请求自动握手
   await initLibsqlSchema(client)
