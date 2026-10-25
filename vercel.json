@@ -3,7 +3,7 @@
   "services": {
     "backend": {
       "root": "backend",
-      "framework": "hono",
+      "runtime": "@vercel/node",
       "entrypoint": "api/[[...route]].ts"
     },
     "frontend": {
