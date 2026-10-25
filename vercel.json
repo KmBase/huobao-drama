@@ -1,14 +1,20 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "builds": [
-    { "src": "backend/api/[[...route]].ts", "use": "@vercel/node", "config": { "memory": 1024 } },
-    { "src": "frontend/package.json", "use": "@vercel/static-build", "config": { "distDir": ".output/public" } }
-  ],
-  "routes": [
-    { "src": "/api/(.*)", "dest": "backend/api/[[...route]].ts" },
-    { "src": "/static/(.*)", "dest": "backend/api/[[...route]].ts" },
-    { "handle": "filesystem" },
-    { "src": "/(.*)", "dest": "/index.html" }
+  "services": {
+    "backend": {
+      "root": "backend",
+      "framework": "hono",
+      "entrypoint": "api/[[...route]].ts"
+    },
+    "frontend": {
+      "root": "frontend",
+      "framework": "nuxtjs"
+    }
+  },
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": { "service": "backend" } },
+    { "source": "/static/(.*)", "destination": { "service": "backend" } },
+    { "source": "/(.*)", "destination": { "service": "frontend" } }
   ],
   "crons": [
     { "path": "/api/v1/tasks/sweep", "schedule": "* * * * *" }

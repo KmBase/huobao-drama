@@ -5,8 +5,9 @@ serverless 形态的部署说明。同一代码库支持三种形态：桌面（
 协商，前端自动适配。
 
 **入口位置约定**：API 函数入口在 `backend/api/[[...route]].ts`（必须位于 backend/ 内，
-使 @vercel/node 的依赖锚点 = backend/package.json）；仓库根 `vercel.json` 定义
-builds / routes / crons。
+使 @vercel/node 的依赖锚点 = backend/package.json）；仓库根 `vercel.json` 以 **services 模式**
+定义两个服务（backend = Hono 函数，frontend = Nuxt 静态站点）、公网 rewrite 与 crons。
+浏览器请求经同一域名的 rewrite 进入 backend（/api、/static），服务间无互调，不需要 binding。
 
 ## 前置准备
 
