@@ -103,16 +103,13 @@ export async function isMediaTokenValid(token: unknown): Promise<boolean> {
 }
 
 /** 初始访问密码：环境变量 HUOBAO_ACCESS_PASSWORD。仅在库中从未设置过密码时生效（幂等，
- *  冷启动重复调用无副作用），之后可在设置页修改/清除，改后环境变量即失效 */
+ *  冷启动重复调用无副作用），之后可在设置页修改/清除，改后环境变量即失效。
+ *  密码不合规时抛错（由调用方记录日志），避免静默失效让人以为已受保护 */
 export async function ensureInitialAccessPassword(): Promise<boolean> {
   const raw = process.env.HUOBAO_ACCESS_PASSWORD?.trim()
   if (!raw || await hasAccessPassword()) return false
-  try {
-    await setAccessPassword(raw)
-    return true
-  } catch {
-    return false
-  }
+  await setAccessPassword(raw)
+  return true
 }
 
 // ---- 登录失败退避：同 IP 连续失败越多，等待越久（进程重启清零，够挡暴力枚举） ----
