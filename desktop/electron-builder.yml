@@ -16,6 +16,8 @@ files:
   - dist/**
   - build/backend.mjs
   - package.json
+  - assets/tray.png
+  - assets/tray-dot.png
 # 原生模块不能留在 asar（.node 需真实文件路径被 dlopen）
 asarUnpack:
   - "**/node_modules/sharp/**"

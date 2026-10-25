@@ -8,7 +8,7 @@
  * 后端可重启（startBackend）：存储位置迁移 = 停后端 → 搬文件 → 换 currentDataDir →
  * 重启后端（见 migrate.ts）；backendRestarting 期间抑制「异常退出」弹窗。
  */
-import { app, BrowserWindow, dialog, ipcMain, shell, utilityProcess } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, shell, utilityProcess, Tray, Menu, nativeImage } from 'electron'
 import type { UtilityProcess } from 'electron'
 import * as net from 'net'
 import * as fs from 'fs'
@@ -36,6 +36,8 @@ let quitting = false
 let backendRestarting = false
 let backendPort = 0
 let currentDataDir = ''
+let tray: Tray | null = null
+let tasksActive = false
 
 // userData 显式按模式区分：打包版 / dev 版互不干扰（数据库、上传文件、单实例锁均隔离），
 // 不依赖 package.json 命名（打包后与 dev 同名会导致单实例锁误杀）
@@ -222,6 +224,75 @@ function startBackend(): void {
   })
 }
 
+// ---- 托盘 ----
+
+/** 托盘图标：dev 从 desktop/assets，打包后 assets/*.png 随 asar（见 electron-builder.yml files） */
+function trayImage(name: string) {
+  const img = nativeImage.createFromPath(path.join(DESKTOP_ROOT, 'assets', name))
+  img.setTemplateImage(process.platform === 'darwin' && name === 'tray.png')
+  return img
+}
+
+function showMainWindow() {
+  if (!mainWindow) {
+    void createWindow()
+    return
+  }
+  if (mainWindow.isMinimized()) mainWindow.restore()
+  mainWindow.show()
+  mainWindow.focus()
+}
+
+function createTray() {
+  tray = new Tray(trayImage('tray.png'))
+  tray.setToolTip('火宝短剧')
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: '打开火宝短剧', click: showMainWindow },
+    { type: 'separator' },
+    {
+      label: '退出',
+      click: () => {
+        quitting = true
+        markQuitting()
+        app.quit()
+      },
+    },
+  ]))
+  tray.on('double-click', showMainWindow)
+  // macOS 左键单击 = 打开（Windows 走右键菜单/双击）
+  tray.on('click', () => { if (process.platform === 'darwin') showMainWindow() })
+}
+
+/** 任务红点：托盘换图标 + tooltip，Windows 任务栏角标，macOS Dock 徽标 */
+function setTasksActive(active: boolean) {
+  if (active === tasksActive) return
+  tasksActive = active
+  if (tray) {
+    tray.setImage(trayImage(active ? 'tray-dot.png' : 'tray.png'))
+    tray.setToolTip(active ? '火宝短剧 — 有任务进行中' : '火宝短剧')
+  }
+  if (process.platform === 'win32') {
+    mainWindow?.setOverlayIcon(active ? trayImage('tray-dot.png') : null, active ? '任务进行中' : '')
+  }
+  if (process.platform === 'darwin') {
+    app.dock?.setBadge(active ? '•' : '')
+  }
+}
+
+/**
+ * 轮询后端进行中任务数驱动红点。启用访问密码时主进程无凭据（401），
+ * 此时退化为不显示红点，锁屏后的页面自身已有任务状态展示。
+ */
+async function pollTasksBadge() {
+  try {
+    const res = await fetch(`http://127.0.0.1:${backendPort}/api/v1/tasks?status=processing&page_size=1`)
+    if (res.status === 401) { setTasksActive(false); return }
+    if (!res.ok) return
+    const body = await res.json() as { data?: { counts?: Record<string, number> } }
+    setTasksActive((body?.data?.counts?.processing ?? 0) > 0)
+  } catch { /* 后端瞬时不可达：保持现状，下轮再试 */ }
+}
+
 // ---- 窗口 ----
 
 function createWindow() {
@@ -238,6 +309,13 @@ function createWindow() {
   // 页面标题自带产品名，避免文件路径兜底标题
   mainWindow.on('page-title-updated', e => e.preventDefault())
   mainWindow.on('closed', () => { mainWindow = null })
+  // 关窗 = 最小化到托盘（生成任务继续跑），真正退出走托盘菜单「退出」
+  mainWindow.on('close', (e) => {
+    if (!quitting && tray) {
+      e.preventDefault()
+      mainWindow?.hide()
+    }
+  })
   // 外链一律交给系统浏览器：应用内不弹新窗（如设置页「前往 platform.agnes-ai.cn 获取 Key」）
   const isAppUrl = (url: string) => url.startsWith(`http://127.0.0.1:${backendPort}`)
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -286,6 +364,9 @@ async function bootstrap() {
     console.log('[main] backend healthy, opening window')
     registerTunnelIpc({ getWindow: () => mainWindow, getPort: () => backendPort })
     autoStartTunnel(backendPort)
+    createTray()
+    setInterval(pollTasksBadge, 5000)
+    void pollTasksBadge()
     await createWindow()
   } catch (err) {
     console.error('[main] 启动失败:', err)
