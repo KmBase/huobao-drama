@@ -8,6 +8,7 @@
  * serverless 开关见 utils/runtime-mode.ts；@vercel/blob 均为动态 import，
  * 保证本地/桌面形态不引入该依赖（desktop esbuild 已列 external）。
  */
+import crypto from 'crypto'
 import fs from 'fs'
 import path from 'path'
 import sharp from 'sharp'
@@ -198,6 +199,43 @@ export function parseDataUrl(dataUrl: string): { mimeType: string; data: string 
   return {
     mimeType: match[1],
     data: match[2],
+  }
+}
+
+/** public-url 协议参考图体积门槛：超过则压成 JPEG 副本（上游下载超时/单图限制的兜底） */
+const REFERENCE_URL_COMPRESS_THRESHOLD = 1024 * 1024
+
+const COMPRESSIBLE_IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp'])
+
+/**
+ * 参考图公网 URL 化前的体积压缩：本地 static/images/ 下超过 1MB 的图片
+ * 压成最长边 1600 的 JPEG 副本（static/images/ref-compressed/<sha1>.jpg），
+ * 返回新的相对路径；小图 / 非本地路径 / 压缩失败均原样返回，不阻断提交。
+ * 输出名按源文件内容哈希，同图只压一次。
+ */
+export async function compressReferenceImageForUrl(relativePath: string): Promise<string> {
+  const raw = String(relativePath || '').trim()
+  if (!raw.startsWith('static/images/')) return raw
+  if (!COMPRESSIBLE_IMAGE_EXTS.has(path.extname(raw).toLowerCase())) return raw
+  try {
+    const input = await readFileBuffer(raw)
+    if (input.length <= REFERENCE_URL_COMPRESS_THRESHOLD) return raw
+    const resized = sharp(input)
+      .rotate()
+      .resize({ width: 1600, height: 1600, fit: 'inside', withoutEnlargement: true })
+    const metadata = await resized.metadata()
+    const output = metadata.hasAlpha
+      ? await resized.flatten({ background: '#ffffff' }).jpeg({ quality: 82, mozjpeg: true }).toBuffer()
+      : await resized.jpeg({ quality: 82, mozjpeg: true }).toBuffer()
+    if (output.length >= input.length) return raw
+    const hash = crypto.createHash('sha1').update(input).digest('hex').slice(0, 16)
+    const filename = `${hash}.jpg`
+    const target = `static/images/ref-compressed/${filename}`
+    if (!IS_SERVERLESS && fs.existsSync(getAbsolutePath(target))) return target
+    return await saveBuffer(output, 'images/ref-compressed', filename, 'image/jpeg')
+  } catch (err) {
+    console.warn(`[storage] 参考图压缩失败 ${raw}:`, (err as Error).message)
+    return raw
   }
 }
 

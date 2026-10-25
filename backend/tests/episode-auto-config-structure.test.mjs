@@ -5,25 +5,21 @@ import assert from 'node:assert/strict'
 const root = new URL('..', import.meta.url)
 const read = (path) => readFileSync(new URL(path, root), 'utf8')
 
-test('POST /episodes auto-locks configs when not provided', () => {
+test('POST /episodes no longer locks per-episode configs', () => {
   const route = read('src/routes/episodes.ts')
-  const ai = read('src/services/ai.ts')
+  const tasks = read('src/routes/tasks.ts')
 
-  // 不再强制要求 config id
-  assert.doesNotMatch(route, /image_config_id and video_config_id are required/)
-  // 通过 getActiveConfigId 自动锁定
-  assert.match(route, /getActiveConfigId\('image'\)/)
-  assert.match(route, /getActiveConfigId\('video'\)/)
-  // ai.ts 提供 getActiveConfigId
-  assert.match(ai, /export async function getActiveConfigId/)
-  // 找不到启用配置时给可操作的错误提示
-  assert.match(route, /未找到启用的图片生成配置/)
-  assert.match(route, /未找到启用的视频生成配置/)
+  // 建集不再读取/写入 image_config_id / video_config_id
+  assert.doesNotMatch(route, /imageConfigId|videoConfigId/)
+  // 任务发起回退链：请求 config_id → 全局默认，不再回退集锁定配置
+  assert.doesNotMatch(tasks, /imageConfigId|videoConfigId/)
+  assert.match(tasks, /body\.config_id/)
 })
 
-test('POST /episodes still honors explicit config ids when caller passes them', () => {
-  const route = read('src/routes/episodes.ts')
+test('split-apply no longer locks per-episode configs', () => {
+  const route = read('src/routes/dramas.ts')
+  const apply = route.slice(route.indexOf('split-episodes/apply'))
 
-  assert.match(route, /body\.image_config_id \?\? await getActiveConfigId/)
-  assert.match(route, /body\.video_config_id \?\? await getActiveConfigId/)
+  assert.doesNotMatch(apply, /imageConfigId|videoConfigId/)
+  assert.doesNotMatch(apply, /getActiveConfigId/)
 })

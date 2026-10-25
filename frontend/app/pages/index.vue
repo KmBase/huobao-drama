@@ -74,7 +74,8 @@
         @keydown.space.prevent="openDrama(d)"
       >
         <div class="project-cover">
-          <span class="cover-initial">{{ coverInitial(d) }}</span>
+          <img v-if="d.thumbnail" :src="d.thumbnail" class="cover-img" :alt="d.title" loading="lazy" />
+          <span v-else class="cover-initial">{{ coverInitial(d) }}</span>
           <span v-if="d.aspect_ratio && d.aspect_ratio !== 'adaptive'" class="cover-ratio">{{ d.aspect_ratio }}</span>
           <div class="status-wrap" @click.stop>
             <AppMenu
@@ -143,49 +144,7 @@
       <button v-if="!dramas.length" class="btn btn-primary" @click="showCreate = true">{{ t('index.create') }}</button>
     </div>
 
-    <div v-if="showCreate" class="overlay" @click.self="showCreate = false">
-      <div class="dialog create-dialog">
-        <div class="dialog-head">
-          <div class="modal-icon">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
-              <rect x="3" y="3" width="18" height="18" rx="3"/>
-              <line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/>
-            </svg>
-          </div>
-          <div class="dialog-head-copy">
-            <h2 class="dialog-title">{{ t('index.createDialog.title') }}</h2>
-            <p class="dialog-desc">{{ t('index.createDialog.desc') }}</p>
-          </div>
-        </div>
-        <form @submit.prevent="create" class="dialog-form">
-          <div class="dialog-body">
-            <label class="field">
-              <span class="field-label">{{ t('index.createDialog.name') }} <span class="required">*</span></span>
-              <input v-model="form.title" class="input" :placeholder="t('index.createDialog.namePlaceholder')" required autofocus />
-            </label>
-            <label class="field">
-              <span class="field-label">{{ t('index.createDialog.style') }}</span>
-              <BaseSelect v-model="form.style" :options="styleSelectOptions" :placeholder="t('index.createDialog.stylePlaceholder')" searchable />
-              <span v-if="selectedStyleDesc" class="field-hint">{{ selectedStyleDesc }}</span>
-            </label>
-            <label class="field">
-              <span class="field-label">{{ t('index.createDialog.aspectRatio') }}</span>
-              <BaseSelect v-model="form.aspect_ratio" :options="aspectRatioOptions" :placeholder="t('index.createDialog.aspectRatioPlaceholder')" />
-              <span class="field-hint">{{ t('index.createDialog.aspectRatioHint') }}</span>
-            </label>
-          </div>
-          <div class="dialog-foot">
-            <button type="button" class="btn" @click="showCreate = false">{{ t('common.cancel') }}</button>
-            <button type="submit" class="btn btn-primary">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
-                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-              </svg>
-              {{ t('index.createDialog.submit') }}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+    <ProjectConfigDialog v-model:open="showCreate" mode="create" @created="onCreated" />
     <ConfirmDialog
       :open="!!dramaToDelete"
       :title="t('index.deleteDialog.title')"
@@ -221,17 +180,7 @@ const sortOptions = computed(() => ([
 const activeMenuId = ref(null)
 const dramaToDelete = ref(null)
 const deletingDrama = ref(false)
-const form = ref({ title: '', style: '', aspect_ratio: '16:9' })
 const stylePresets = ref([])
-const styleSelectOptions = computed(() => stylePresets.value.map(p => ({ label: p.name, value: p.value })))
-const selectedStyleDesc = computed(() => stylePresets.value.find(p => p.value === form.value.style)?.description || '')
-// 常量数组 label 渲染时求值（语言切换即时生效），value 为逻辑值
-const aspectRatioOptions = computed(() => ([
-  { label: t('index.ratio.landscape'), value: '16:9' },
-  { label: t('index.ratio.portrait'), value: '9:16' },
-  { label: t('index.ratio.square'), value: '1:1' },
-  { label: t('index.ratio.adaptive'), value: 'adaptive' },
-]))
 const filters = computed(() => ([
   { label: t('index.status.all'), value: 'all' },
   { label: t('index.status.draft'), value: 'draft' },
@@ -293,9 +242,6 @@ async function load() {
     const [res, presets] = await Promise.all([dramaAPI.list(), stylePresetAPI.list()])
     dramas.value = res.items || []
     stylePresets.value = presets || []
-    if (!form.value.style && stylePresets.value.length) {
-      form.value.style = stylePresets.value[0].value
-    }
   } catch (e) {
     toastError(e)
   } finally {
@@ -303,15 +249,9 @@ async function load() {
   }
 }
 
-async function create() {
-  if (!form.value.title?.trim()) return
-  try {
-    const d = await dramaAPI.create(form.value)
-    showCreate.value = false
-    navigateTo(`/drama/${d.id}`)
-  } catch (e) {
-    toastError(e)
-  }
+// 新建完成 → 直接进入项目页（完整配置在新版新建弹窗里一次填好）
+function onCreated(d) {
+  navigateTo(`/drama/${d.id}`)
 }
 
 async function confirmDelDrama() {
@@ -486,6 +426,13 @@ onMounted(() => setTimeout(() => autoTour('index', INDEX_TOUR, t), 600))
   opacity: 0.55;
   user-select: none;
 }
+.cover-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
 .cover-ratio {
   position: absolute;
   right: 10px;
@@ -614,33 +561,6 @@ onMounted(() => setTimeout(() => autoTour('index', INDEX_TOUR, t), 600))
 .empty-title { font-size: 14px; font-weight: 600; color: var(--text-1); }
 .empty-desc { font-size: 12px; color: var(--text-3); max-width: 240px; line-height: 1.6; }
 
-.create-dialog { width: 460px; max-width: calc(100vw - 32px); }
-.dialog-head-copy { display: flex; flex-direction: column; gap: 2px; }
-.dialog-desc { font-size: 12.5px; color: var(--text-3); }
-.modal-icon {
-  width: 40px;
-  height: 40px;
-  flex: 0 0 auto;
-  border-radius: var(--radius);
-  background: var(--accent-bg);
-  color: var(--accent);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.dialog-form {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-}
-.dialog-body { display: flex; flex-direction: column; gap: 16px; }
-.field { display: flex; flex-direction: column; gap: 6px; }
-.field-label { font-size: 12px; font-weight: 600; color: var(--text-1); }
-.required { color: var(--error); }
-.field-hint { font-size: 11px; color: var(--text-3); line-height: 1.5; }
-.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-
 @media (max-width: 900px) {
   .project-grid { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
 }
@@ -653,8 +573,5 @@ onMounted(() => setTimeout(() => autoTour('index', INDEX_TOUR, t), 600))
   .search-box { width: 100%; flex: 1 1 100%; }
   .sort-select-wrap { margin-left: 0; flex: 1; }
   .project-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
-  .field-row { grid-template-columns: 1fr; }
-  .dialog-foot { flex-direction: column-reverse; }
-  .dialog-foot .btn { width: 100%; }
 }
 </style>

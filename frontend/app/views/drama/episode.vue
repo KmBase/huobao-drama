@@ -1,74 +1,30 @@
 <template>
   <div class="studio" v-if="drama">
-    <header class="studio-topbar">
-      <div class="studio-topbar-main">
-        <button class="back-btn topbar-back" @click="navigateTo(`/drama/${dramaId}`)">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
-          </svg>
-          {{ t('episode.topbar.back') }}
-        </button>
-        <div class="studio-identity">
-          <h1 class="studio-title">{{ drama.title }}</h1>
-          <span class="studio-episode-chip">{{ t('episode.topbar.episodeN', { n: episodeNumber }) }}</span>
-          <div class="studio-meta-row">
-            <span class="studio-meta-pill">{{ currentSubStageLabel }}</span>
-            <span class="studio-meta-pill is-progress">{{ pipelineProgress }}/{{ pipelineTotal }}</span>
-            <span class="studio-meta-inline">{{ t('episode.topbar.meta', { roles: chars.length, shots: sbs.length }) }}</span>
-          </div>
-        </div>
-      </div>
+    <PageTopbar :back-to="`/drama/${dramaId}`" :back-label="t('episode.topbar.back')" :title="drama.title">
+      <template #identity>
+        <span class="studio-episode-chip">{{ t('episode.topbar.episodeN', { n: episodeNumber }) }}</span>
+      </template>
+      <template #meta>
+        <span class="studio-meta-pill">{{ currentSubStageLabel }}</span>
+        <span class="studio-meta-pill is-progress">{{ pipelineProgress }}/{{ pipelineTotal }}</span>
+        <span class="studio-meta-inline">{{ t('episode.topbar.meta', { roles: chars.length, shots: sbs.length }) }}</span>
+      </template>
 
-      <div class="studio-topbar-side">
-        <div class="studio-model-picks">
-          <ModelSelect
-            v-if="textModelOptions.length"
-            v-model="chatModel"
-            :label="t('common.serviceType.text')"
-            :options="textModelOptions"
-            :default-label="t('episode.model.defaultWith', { model: textModelOptions[0].model })"
-            :show-config="textModelMultiCfg"
-          />
-          <ModelSelect
-            v-if="imageModelOptions.length"
-            v-model="imageModel"
-            :label="t('common.serviceType.image')"
-            :options="imageModelOptions"
-            :default-label="t('episode.model.defaultWith', { model: imageModelOptions[0].model })"
-            :show-config="imageModelMultiCfg"
-          />
-          <ModelSelect
-            v-if="videoModelOptions.length"
-            v-model="videoModel"
-            :label="t('common.serviceType.video')"
-            :options="videoModelOptions"
-            :default-label="t('episode.model.defaultWith', { model: videoModelOptions[0].model })"
-            :show-config="videoModelMultiCfg"
-          />
-          <ModelSelect
-            v-model="episodeResolution"
-            :label="t('episode.topbar.resolution')"
-            :options="resolutionOptions"
-            hide-default
-          />
-        </div>
-        <div class="studio-actions">
-          <LocaleSwitcher />
-          <button class="btn btn-icon tour-help-btn" :title="t('tour.helpTitle')" @click="startTour('episode', EPISODE_TOUR, t)">
-            <CircleHelp :size="14" :stroke-width="1.8" />
-          </button>
-          <button class="btn" @click="refresh">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
-            {{ t('common.refresh') }}
-          </button>
-          <button class="btn task-drawer-trigger" @click="openTaskDrawer">
-            <ListTodo :size="12" />
-            {{ t('episode.topbar.tasks') }}
-            <span v-if="genTaskActiveCount" class="task-drawer-badge">{{ genTaskActiveCount }}</span>
-          </button>
-        </div>
+      <div class="studio-actions">
+        <button class="btn btn-icon tour-help-btn" :title="t('tour.helpTitle')" @click="startTour('episode', EPISODE_TOUR, t)">
+          <CircleHelp :size="14" :stroke-width="1.8" />
+        </button>
+        <button class="btn" @click="refresh">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+          {{ t('common.refresh') }}
+        </button>
+        <button class="btn task-drawer-trigger" @click="openTaskDrawer">
+          <ListTodo :size="12" />
+          {{ t('episode.topbar.tasks') }}
+          <span v-if="genTaskActiveCount" class="task-drawer-badge">{{ genTaskActiveCount }}</span>
+        </button>
       </div>
-    </header>
+    </PageTopbar>
 
     <div class="studio-body">
     <!-- ========== LEFT SIDEBAR ========== -->
@@ -307,6 +263,7 @@
             <div class="asset-section-title">
               {{ t('common.role') }}
               <button class="asset-add-btn" @click="openAssetCreate('character')"><Plus :size="11" /> {{ t('common.add') }}</button>
+              <button class="asset-add-btn" @click="openLibraryPick('character')">{{ t('episode.asset.fromLibrary') }}</button>
             </div>
             <template v-if="visualChars.length">
             <div class="character-asset-grid">
@@ -320,7 +277,7 @@
                 @keydown.enter.prevent="openAssetDetail('character', c)"
                 @keydown.space.prevent="openAssetDetail('character', c)"
               >
-                <button class="asset-del-btn" :title="t('episode.asset.delChar')" @click.stop="askDeleteAsset('character', c)"><X :size="11" /></button>
+                <button class="asset-del-btn" :title="t('episode.asset.unlinkBtn')" @click.stop="askDeleteAsset('character', c)"><X :size="11" /></button>
                 <div class="character-asset-main">
                   <div class="character-asset-overview"><div class="character-portrait">
                       <img
@@ -373,6 +330,7 @@
             <div class="asset-section-title">
               {{ t('common.scene') }}
               <button class="asset-add-btn" @click="openAssetCreate('scene')"><Plus :size="11" /> {{ t('common.add') }}</button>
+              <button class="asset-add-btn" @click="openLibraryPick('scene')">{{ t('episode.asset.fromLibrary') }}</button>
             </div>
             <template v-if="scenes.length">
             <div class="asset-grid">
@@ -386,7 +344,7 @@
                 @keydown.enter.prevent="openAssetDetail('scene', s)"
                 @keydown.space.prevent="openAssetDetail('scene', s)"
               >
-                <button class="asset-del-btn" :title="t('episode.asset.delScene')" @click.stop="askDeleteAsset('scene', s)"><X :size="11" /></button>
+                <button class="asset-del-btn" :title="t('episode.asset.unlinkBtn')" @click.stop="askDeleteAsset('scene', s)"><X :size="11" /></button>
                 <div class="asset-cover wide">
                   <img
                     v-if="s.image_url || s.imageUrl"
@@ -429,6 +387,7 @@
             <div class="asset-section-title">
               {{ t('common.prop') }}
               <button class="asset-add-btn" @click="openAssetCreate('prop')"><Plus :size="11" /> {{ t('common.add') }}</button>
+              <button class="asset-add-btn" @click="openLibraryPick('prop')">{{ t('episode.asset.fromLibrary') }}</button>
             </div>
             <div v-if="propItems.length" class="asset-grid">
               <div
@@ -441,7 +400,7 @@
                 @keydown.enter.prevent="openAssetDetail('prop', p)"
                 @keydown.space.prevent="openAssetDetail('prop', p)"
               >
-                <button class="asset-del-btn" :title="t('episode.asset.delProp')" @click.stop="askDeleteAsset('prop', p)"><X :size="11" /></button>
+                <button class="asset-del-btn" :title="t('episode.asset.unlinkBtn')" @click.stop="askDeleteAsset('prop', p)"><X :size="11" /></button>
                 <div class="asset-cover wide">
                   <img
                     v-if="p.image_url || p.imageUrl"
@@ -994,135 +953,15 @@
         </div>
       </div>
 
-      <!-- ===== TASK DRAWER ===== -->
-      <div v-if="taskDrawer" class="task-drawer-overlay" @click.self="closeTaskDrawer">
-        <aside class="task-drawer" role="dialog" aria-modal="true" :aria-label="t('episode.tasks.title')">
-          <header class="task-drawer-head">
-            <div>
-              <div class="video-task-title">{{ t('episode.tasks.title') }}</div>
-              <div class="video-task-meta">{{ t('episode.tasks.meta', { n: genTaskRows.length }) }}</div>
-            </div>
-            <div class="task-drawer-head-actions">
-              <button v-if="genTaskFinishedCount > 0" class="btn btn-sm" @click="genTaskClear">
-                <Trash2 :size="11" /> {{ t('episode.tasks.clear') }}
-              </button>
-              <button class="btn btn-sm" @click="loadGenTasks">
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
-                {{ t('common.refresh') }}
-              </button>
-              <button class="btn btn-ghost btn-icon" @click="closeTaskDrawer"><X :size="14" /></button>
-            </div>
-          </header>
-          <div class="video-task-metrics task-drawer-metrics">
-            <span class="video-task-metric is-pending">{{ t('episode.vid.metricPending', { n: genTaskActiveCount }) }}</span>
-            <span class="video-task-metric is-done">{{ t('episode.vid.metricDone', { n: genTaskDoneCount }) }}</span>
-            <span class="video-task-metric is-failed">{{ t('episode.vid.metricFailed', { n: genTaskFailedCount }) }}</span>
-          </div>
-          <div v-if="!genTaskRows.length" class="step-empty task-drawer-empty">
-            <div class="empty-visual">
-              <ListTodo :size="32" />
-            </div>
-            <div class="empty-title">{{ t('episode.tasks.emptyTitle') }}</div>
-            <div class="empty-desc">{{ t('episode.tasks.emptyDesc') }}</div>
-          </div>
-          <div v-else class="video-task-table task-drawer-body">
-            <div
-              v-for="row in genTaskRows"
-              :key="row.key"
-              :class="['video-task-row', 'gen-task-row', 'is-' + genTaskStateClass(row.status)]"
-            >
-              <div class="video-task-preview">
-                <video
-                  v-if="row.previewUrl && (row.kind === 'video' || row.kind === 'merge')"
-                  :src="genTaskPreviewSrc(row.previewUrl)"
-                  :poster="posterOf(genTaskPreviewSrc(row.previewUrl)) || undefined"
-                  controls
-                  preload="none"
-                  playsinline
-                />
-                <img
-                  v-else-if="row.previewUrl"
-                  :src="thumbOf(genTaskPreviewSrc(row.previewUrl))"
-                  :alt="row.targetLabel"
-                  loading="lazy"
-                  @error="thumbFallback($event, genTaskPreviewSrc(row.previewUrl))"
-                  @click="openImageViewer(genTaskPreviewSrc(row.previewUrl), row.targetLabel)"
-                />
-                <div v-else class="video-task-empty">
-                  <Loader2 v-if="genTaskStateClass(row.status) === 'pending'" :size="18" class="animate-spin" />
-                  <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
-                </div>
-                <span class="video-task-index">{{ genTaskKindLabel(row.kind) }}</span>
-              </div>
-              <div class="video-task-main">
-                <div class="video-task-line">
-                  <strong class="video-task-name truncate task-name-clickable" :title="t('episode.tasks.expandHint')" @click.stop="toggleTaskExpand(row)">{{ row.targetLabel }}</strong>
-                </div>
-                <div class="video-task-meta-line">
-                  <span class="video-task-loc truncate">{{ row.provider }}{{ row.model ? ' · ' + row.model : '' }}</span>
-                  <template v-if="genTaskDuration(row)">
-                    <span class="video-task-sep">·</span>
-                    <span>{{ t('episode.tasks.duration', { dur: genTaskDuration(row) }) }}</span>
-                  </template>
-                  <template v-if="genTaskProgressLine(row)">
-                    <span class="video-task-sep">·</span>
-                    <span class="task-progress-hint">{{ genTaskProgressLine(row) }}</span>
-                  </template>
-                  <span class="video-task-sep">·</span>
-                  <span>#{{ row.id }}</span>
-                </div>
-                <div
-                  v-if="row.status === 'processing'"
-                  class="task-progress-track"
-                  :class="{ indeterminate: !(row.progress?.percent > 0) }"
-                  :style="row.progress?.percent > 0 ? { '--p': row.progress.percent + '%' } : null"
-                >
-                  <div class="task-progress-fill" />
-                </div>
-                <div v-if="row.errorMsg" class="video-task-error" :title="row.errorMsg">
-                  {{ mapError(row.errorMsg) }}
-                  <div v-if="row.kind === 'video' && videoModerationHint(row.errorMsg)" class="video-task-error-hint">{{ videoModerationHint(row.errorMsg) }}</div>
-                </div>
-                <div v-if="expandedTaskKey === row.key" class="video-task-detail">
-                  <div v-if="row.prompt" class="task-detail-line">
-                    <span class="task-detail-label">{{ t('episode.tasks.detailPrompt') }}</span>
-                    <span class="task-detail-value">{{ row.prompt }}</span>
-                  </div>
-                  <div v-if="row.refSummary" class="task-detail-line">
-                    <span class="task-detail-label">{{ t('episode.tasks.detailSpecs') }}</span>
-                    <span class="task-detail-value">{{ row.refSummary }}</span>
-                  </div>
-                  <div v-if="row.upstreamId" class="task-detail-line">
-                    <span class="task-detail-label">{{ t('episode.tasks.detailUpstream') }}</span>
-                    <span class="task-detail-value mono">{{ row.upstreamId }}</span>
-                  </div>
-                  <div class="task-detail-line">
-                    <span class="task-detail-label">{{ t('episode.tasks.detailCreated') }}</span>
-                    <span class="task-detail-value">{{ genTaskFmtTime(row.createdAt) }}</span>
-                  </div>
-                  <div v-if="row.completedAt" class="task-detail-line">
-                    <span class="task-detail-label">{{ t('episode.tasks.detailCompleted') }}</span>
-                    <span class="task-detail-value">{{ genTaskFmtTime(row.completedAt) }}</span>
-                  </div>
-                </div>
-                <div v-if="row.kind !== 'merge' && genTaskRowActions(row).length" class="video-task-actions">
-                  <button
-                    v-for="action in genTaskRowActions(row)"
-                    :key="action.key"
-                    class="btn btn-sm"
-                    :disabled="action.busy"
-                    @click="action.run(row)"
-                  >{{ action.label }}</button>
-                </div>
-              </div>
-              <span :class="['video-task-status', 'is-' + genTaskStateClass(row.status)]">
-                <span :class="['dot', genTaskStateClass(row.status) === 'done' && 'ok', genTaskStateClass(row.status) === 'pending' && 'pending']" />
-                {{ genTaskStatusLabel(row.status) }}
-              </span>
-            </div>
-          </div>
-        </aside>
-      </div>
+      <!-- ===== TASK DRAWER（共享组件，项目页同款） ===== -->
+      <GenTaskDrawer
+        ref="taskDrawerRef"
+        :open="taskDrawer"
+        :fetch="fetchGenTasks"
+        :context="{ sbs, chars, scenes, props: propItems }"
+        @close="taskDrawer = false"
+        @loaded="onGenTasksLoaded"
+      />
 
       <div v-if="assetDetail.open && assetDetail.item" class="overlay asset-detail-overlay" @click.self="closeAssetDetail">
         <section
@@ -1291,11 +1130,34 @@
                     : t('episode.asset.promptHintProp') }}
               </p>
             </section>
+
+            <!-- 参考图：生图时作为参考提交（即时保存） -->
+            <section class="asset-detail-prompt-panel">
+              <div class="asset-detail-section-title">
+                <span>{{ t('episode.asset.refImages') }}</span>
+                <div class="asset-detail-prompt-head-actions">
+                  <button class="btn btn-sm" :disabled="assetRefUploading" @click="addAssetRefImages">
+                    <Loader2 v-if="assetRefUploading" :size="11" class="animate-spin" />
+                    <svg v-else width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    {{ t('episode.asset.addRefImages') }}
+                  </button>
+                </div>
+              </div>
+              <div v-if="assetRefImages.length" class="refimg-grid">
+                <div v-for="(img, i) in assetRefImages" :key="img + i" class="refimg-item">
+                  <img :src="refImgSrc(img)" loading="lazy" @error="thumbFallback($event, refImgSrc(img))" />
+                  <button type="button" class="refimg-del" :title="t('episode.asset.removeRefImage')" @click="removeAssetRefImage(i)">
+                    <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </button>
+                </div>
+              </div>
+              <p v-else class="asset-detail-prompt-hint">{{ t('episode.asset.refImagesEmpty') }}</p>
+            </section>
           </div>
 
           <footer class="dialog-foot asset-detail-foot">
             <div class="asset-detail-secondary-actions">
-              <button class="btn btn-danger" @click="askDeleteAsset(assetDetail.type, assetDetail.item)">{{ t('common.delete') }}</button>
+              <button class="btn btn-danger" @click="askDeleteAsset(assetDetail.type, assetDetail.item)">{{ t('episode.asset.unlink') }}</button>
               <button class="btn" @click="closeAssetDetail">{{ t('common.close') }}</button>
             </div>
             <div class="asset-detail-primary-actions">
@@ -1444,6 +1306,39 @@
         </div>
       </div>
 
+      <!-- 从素材库添加：挂接项目已有资产到本集（跨集复用） -->
+      <div v-if="libraryPick.open" class="overlay" @click.self="libraryPick.open = false">
+        <div class="dialog asset-create-dialog">
+          <header class="dialog-head">
+            <h2 class="dialog-title">{{ t('episode.asset.libraryPickTitle', { type: assetKindLabel(libraryPick.type) }) }}</h2>
+            <button class="btn btn-ghost btn-icon" @click="libraryPick.open = false">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </header>
+          <div class="dialog-body library-pick-body">
+            <div v-if="libraryPick.loading" class="library-pick-empty"><Loader2 :size="14" class="animate-spin" /></div>
+            <div v-else-if="!libraryCandidates.length" class="library-pick-empty">{{ t('episode.asset.libraryPickEmpty') }}</div>
+            <template v-else>
+              <button
+                v-for="item in libraryCandidates"
+                :key="item.id"
+                type="button"
+                class="library-pick-row"
+                :disabled="libraryPick.linking"
+                @click="linkFromLibrary(item)"
+              >
+                <img v-if="item.image_url || item.imageUrl" :src="thumbOf(item.image_url || item.imageUrl)" class="library-pick-thumb" />
+                <span v-else class="library-pick-thumb library-pick-thumb-empty"><X :size="1" /></span>
+                <span class="library-pick-name">{{ item.name || item.location }}</span>
+                <span class="library-pick-meta dim">{{ item.description || item.appearance || item.prompt || '' }}</span>
+                <Plus :size="12" class="ml-auto" />
+              </button>
+            </template>
+            <p class="library-pick-hint dim">{{ t('episode.asset.libraryPickHint') }}</p>
+          </div>
+        </div>
+      </div>
+
       <div v-if="batchVideoConfirm.open" class="overlay" @click.self="batchVideoConfirm.open = false">
         <div class="dialog batch-video-dialog">
           <header class="dialog-head">
@@ -1468,21 +1363,14 @@
 
       <ConfirmDialog
         :open="assetDelete.open"
-        :title="t('episode.delete.title', { type: assetDeleteTypeLabel })"
-        :message="t('episode.delete.message', { type: assetDeleteTypeLabel, name: assetDeleteName })"
+        :title="t('episode.asset.unlinkTitle', { type: assetDeleteTypeLabel })"
+        :message="t('episode.asset.unlinkMessage', { type: assetDeleteTypeLabel, name: assetDeleteName })"
+        :confirm-text="t('episode.asset.unlinkConfirm')"
         :loading="assetDelete.loading"
         @confirm="confirmDeleteAsset"
         @cancel="assetDelete.open = false"
       />
 
-      <ConfirmDialog
-        :open="taskConfirm.open"
-        :title="taskConfirm.title"
-        :message="taskConfirm.message"
-        :z-index="121"
-        @confirm="runTaskConfirm"
-        @cancel="taskConfirm.open = false"
-      />
     </main>
     </div>
   </div>
@@ -1496,10 +1384,10 @@ import {
   Plus, X, ListTodo, CircleHelp, Trash2,
 } from 'lucide-vue-next'
 import { api, dramaAPI, episodeAPI, storyboardAPI, characterAPI, sceneAPI, propAPI, taskAPI, mergeAPI, aiConfigAPI, uploadAPI, loadCapabilities } from '~/composables/useApi'
+import { collectModelOptions, bareModelName, ownerConfigId, configModels } from '~/composables/useModelOptions'
 import { startTour, autoTour } from '~/composables/useTour'
 import { useAgent } from '~/composables/useAgent'
 import { toastError, mapError, MODERATION_RE } from '~/composables/useToast'
-import LocaleSwitcher from '~/components/LocaleSwitcher.vue'
 
 definePageMeta({ layout: 'studio' })
 
@@ -1623,23 +1511,36 @@ const prodTabIdx = computed({
 const imageConfigs = ref([])
 const videoConfigs = ref([])
 const textConfigs = ref([])
-// 生成时可选模型：空串 = 跟随配置默认（models[0]）；选择持久化到 localStorage，刷新页面后保留
-const MODEL_STORE_KEYS = { chat: 'huobao:model:chat', image: 'huobao:model:image', video: 'huobao:model:video' }
+// 生成模型：项目级配置（dramas.model_*，项目配置弹窗维护）；工作台顶栏不再直接切换。
+// ref 初值沿用旧版 localStorage（升级过渡），项目记录加载后以项目配置为准；空串 = 跟随配置默认
+const chatModel = ref(readStoredModel('huobao:model:chat', 'huobao:model:rewrite'))
+const imageModel = ref(readStoredModel('huobao:model:image'))
+const videoModel = ref(readStoredModel('huobao:model:video'))
 function readStoredModel(key, legacyKey = '') {
   try { return localStorage.getItem(key) || (legacyKey && localStorage.getItem(legacyKey)) || '' } catch { return '' }
 }
-// 顶栏文本模型：适用于所有 Chat Agent 调用（改写/提取/拆镜/视频提示词/最终提示词），空串 = 跟随配置默认
-const chatModel = ref(readStoredModel(MODEL_STORE_KEYS.chat, 'huobao:model:rewrite'))
-const imageModel = ref(readStoredModel(MODEL_STORE_KEYS.image))
-const videoModel = ref(readStoredModel(MODEL_STORE_KEYS.video))
-function persistModel(modelRef, key) {
-  watch(modelRef, v => {
-    try { v ? localStorage.setItem(key, v) : localStorage.removeItem(key) } catch {}
-  })
-}
-persistModel(chatModel, MODEL_STORE_KEYS.chat)
-persistModel(imageModel, MODEL_STORE_KEYS.image)
-persistModel(videoModel, MODEL_STORE_KEYS.video)
+// 项目记录 → 顶栏生效模型：项目值为准（含清空）；首次加载时旧版 localStorage 的选择迁移写入项目
+let syncingModels = false
+let modelsMigrated = false
+watch(drama, (d) => {
+  if (!d) return
+  const migrate = !modelsMigrated
+  modelsMigrated = true
+  syncingModels = true
+  const resolve = (local, stored) => (stored != null ? stored : (migrate && local ? local : ''))
+  chatModel.value = resolve(chatModel.value, d.model_chat)
+  imageModel.value = resolve(imageModel.value, d.model_image)
+  videoModel.value = resolve(videoModel.value, d.model_video)
+  nextTick(() => { syncingModels = false })
+  if (migrate && (d.model_chat == null || d.model_image == null || d.model_video == null)) {
+    dramaAPI.update(dramaId, { model_chat: chatModel.value || null, model_image: imageModel.value || null, model_video: videoModel.value || null }).catch(() => {})
+  }
+})
+// 理论上顶栏已不可改模型；保险起见变更仍写回项目配置（防未来入口绕过弹窗）
+watch([chatModel, imageModel, videoModel], ([c, i, v]) => {
+  if (syncingModels) return
+  dramaAPI.update(dramaId, { model_chat: c || null, model_image: i || null, model_video: v || null }).catch(() => {})
+})
 // 左侧菜单栏收起/展开：收起为窄图标栏给内容区让位，持久化到 localStorage
 const SIDEBAR_COLLAPSED_KEY = 'huobao:sidebar-collapsed'
 const sidebarCollapsed = ref((() => {
@@ -1661,15 +1562,16 @@ const pendingSceneImageIds = ref([])
 const pendingPropImageIds = ref([])
 const pendingVideoIds = ref([])
 const failedVideoMessages = ref({})
-// 任务列表面板：顶栏按钮触发的右侧抽屉,按集聚合 sys_task + video_merges
+// 任务列表面板（GenTaskDrawer 共享组件）：顶栏按钮触发的右侧抽屉,按集聚合 sys_task + video_merges
+const taskDrawerRef = ref(null)
 const genTasks = ref([])
 const genMerges = ref([])
 const taskDrawer = ref(false)
-let genTasksTimer = null
+// 项目配置弹窗（模型/语言/风格等统一在弹窗内维护）
+const configDialog = ref(false)
 
 function openTaskDrawer() {
   taskDrawer.value = true
-  loadGenTasks()
 }
 function closeTaskDrawer() {
   taskDrawer.value = false
@@ -1726,6 +1628,7 @@ function openAssetDetail(type, item) {
   }
   assetPromptDraft.value = item.final_prompt || item.finalPrompt || ''
   assetPromptDirty.value = false
+  assetRefImages.value = parseRefImages(item.reference_images ?? item.referenceImages)
 }
 
 function closeAssetDetail() {
@@ -1733,6 +1636,73 @@ function closeAssetDetail() {
   assetDetailDraft.value = { appearance: '', styling: '', prompt: '', lighting: '', description: '' }
   assetPromptDraft.value = ''
   assetPromptDirty.value = false
+  assetRefImages.value = []
+}
+
+// ─── 资产参考图（生图时随提示词一并提交，即时保存） ─────────
+function parseRefImages(raw) {
+  if (Array.isArray(raw)) return raw.map(String).filter(Boolean)
+  if (typeof raw === 'string' && raw) {
+    try {
+      const p = JSON.parse(raw)
+      return Array.isArray(p) ? p.map(String).filter(Boolean) : []
+    } catch { return [] }
+  }
+  return []
+}
+function refImgSrc(raw) {
+  return /^https?:\/\//i.test(raw) || String(raw).startsWith('/') ? raw : `/${raw}`
+}
+const assetRefImages = ref([])
+const assetRefUploading = ref(false)
+
+async function persistAssetRefImages() {
+  const detail = assetDetail.value
+  if (!detail.item?.id) return
+  const payload = { reference_images: assetRefImages.value }
+  if (detail.type === 'character') await characterAPI.update(detail.item.id, payload)
+  else if (detail.type === 'scene') await sceneAPI.update(detail.item.id, payload)
+  else await propAPI.update(detail.item.id, payload)
+  Object.assign(detail.item, { reference_images: JSON.stringify(assetRefImages.value) })
+}
+
+function addAssetRefImages() {
+  if (assetRefUploading.value) return
+  const input = document.createElement('input')
+  input.type = 'file'
+  input.multiple = true
+  input.accept = 'image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp'
+  input.onchange = async () => {
+    const files = Array.from(input.files || [])
+    if (!files.length) return
+    if (assetRefImages.value.length + files.length > 10) {
+      toast.error(t('episode.asset.refImageMax'))
+      return
+    }
+    assetRefUploading.value = true
+    try {
+      for (const file of files) {
+        const res = await uploadAPI.image(file)
+        assetRefImages.value.push(res.path)
+      }
+      await persistAssetRefImages()
+      toast.success(t('episode.asset.refImageSaved'))
+    } catch (e) {
+      toastError(e)
+    } finally {
+      assetRefUploading.value = false
+    }
+  }
+  input.click()
+}
+
+async function removeAssetRefImage(i) {
+  assetRefImages.value.splice(i, 1)
+  try {
+    await persistAssetRefImages()
+  } catch (e) {
+    toastError(e)
+  }
 }
 
 // ─── 手动新增资产 ────────────────────────────────────────────
@@ -1778,7 +1748,7 @@ async function saveAssetCreate() {
   }
 }
 
-// ─── 删除资产 ────────────────────────────────────────────────
+// ─── 移出本集（不删资产本身，其他集仍可继续使用） ────────────
 const assetDelete = ref({ open: false, type: '', item: null, loading: false })
 const assetDeleteTypeLabel = computed(() => assetKindLabel(assetDelete.value.type))
 const assetDeleteName = computed(() => assetDelete.value.item?.name || assetDelete.value.item?.location || '')
@@ -1792,10 +1762,9 @@ async function confirmDeleteAsset() {
   if (!item || assetDelete.value.loading) return
   assetDelete.value.loading = true
   try {
-    if (type === 'character') await characterAPI.del(item.id)
-    else if (type === 'scene') await sceneAPI.del(item.id)
-    else await propAPI.del(item.id)
-    toast.success(t('episode.delete.deleted', { type: assetDeleteTypeLabel.value }))
+    // 只解除本集挂接；彻底删除请到项目详情的素材库
+    await episodeAPI.unlinkAsset(type, epId.value, item.id)
+    toast.success(t('episode.asset.unlinked', { type: assetDeleteTypeLabel.value }))
     assetDelete.value.open = false
     if (assetDetail.value.open && assetDetail.value.type === type && assetDetail.value.item?.id === item.id) closeAssetDetail()
     await refresh()
@@ -1803,6 +1772,43 @@ async function confirmDeleteAsset() {
     toastError(e)
   } finally {
     assetDelete.value.loading = false
+  }
+}
+
+// ─── 从素材库添加：挂接项目已有资产到本集 ────────────────────
+const libraryPick = ref({ open: false, type: '', loading: false, linking: false })
+
+async function openLibraryPick(type) {
+  libraryPick.value = { open: true, type, loading: true, linking: false }
+  try {
+    await refresh()
+  } finally {
+    libraryPick.value.loading = false
+  }
+}
+
+// 候选 = 项目全部该类资产 − 本集已挂接
+const libraryCandidates = computed(() => {
+  const d = drama.value
+  if (!d) return []
+  const type = libraryPick.value.type
+  const linkedIds = new Set((type === 'character' ? chars.value : type === 'scene' ? scenes.value : propItems.value).map(x => x.id))
+  const all = (type === 'character' ? d.characters : type === 'scene' ? d.scenes : d.props) || []
+  return all.filter(x => !linkedIds.has(x.id) && !x.deleted_at && !x.deletedAt)
+})
+
+async function linkFromLibrary(item) {
+  if (libraryPick.value.linking) return
+  libraryPick.value.linking = true
+  try {
+    await episodeAPI.linkAsset(libraryPick.value.type, epId.value, item.id)
+    toast.success(t('episode.asset.linked', { name: item.name || item.location }))
+    libraryPick.value.open = false
+    await refresh()
+  } catch (e) {
+    toastError(e)
+  } finally {
+    libraryPick.value.linking = false
   }
 }
 
@@ -1992,7 +1998,6 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleImageViewerKeydown)
-  stopGenTasksPolling()
 })
 
 function isPendingSceneImage(id) {
@@ -2090,8 +2095,7 @@ function isNarratorCharacter(char) {
 }
 
 const visualChars = computed(() => chars.value.filter(c => !isNarratorCharacter(c)))
-const lockedVideoConfigId = computed(() => episode.value?.video_config_id || episode.value?.videoConfigId || null)
-// 集视频分辨率：顶栏直接修改（持久化 episodes.resolution，生成任务按此值锁定）。
+// 视频分辨率：项目级配置（dramas.resolution，项目配置弹窗维护），剧集继承不再按集修改。
 // 内部统一存 480p/720p/1080p 三档，界面按当前选中的视频模型显示厂商原生档位
 // （Seedance 480p/720p、MiniMax 768P/2K、Wan 3.0 480P/720P/1080P），适配器再映射为官方枚举
 const RESOLUTION_TIERS = {
@@ -2109,72 +2113,22 @@ const resolutionOptions = computed(() => RESOLUTION_TIERS[resolutionProvider.val
   key,
   model: `${RESOLUTION_DISPLAY[resolutionProvider.value][key]} · ${t(`episode.resolution.${key === '480p' ? 'smooth' : key === '720p' ? 'hd' : 'uhd'}`)}`,
 })))
-const episodeResolution = computed({
-  get: () => {
-    const v = episode.value?.resolution
-    return resolutionOptions.value.some(o => o.key === v) ? v : '720p'
-  },
-  set: (val) => { void changeEpisodeResolution(val) },
+const episodeResolution = computed(() => {
+  const v = drama.value?.resolution
+  return resolutionOptions.value.some(o => o.key === v) ? v : '720p'
 })
-async function changeEpisodeResolution(val) {
-  if (!episode.value || val === episodeResolution.value) return
-  const prev = episode.value.resolution
-  episode.value.resolution = val
-  const label = resolutionOptions.value.find(o => o.key === val)?.model || val
-  try {
-    await episodeAPI.update(epId.value, { resolution: val })
-    toast.success(t('episode.vid.resolutionSwitched', { label }))
-  } catch (e) {
-    episode.value.resolution = prev
-    toastError(e)
-  }
-}
 // 画面比例在创建项目时固定，视频生成统一使用
 const dramaAspectRatio = computed(() => drama.value?.aspect_ratio || drama.value?.aspectRatio || '16:9')
 
 // 生成可选模型列表：配置中的模型数组（首位为配置默认）；API 可能返回数组或 JSON 字符串
-function configModels(cfg) {
-  const raw = cfg?.model
-  if (!raw) return []
-  if (Array.isArray(raw)) return raw.filter(Boolean)
-  try { const m = JSON.parse(raw); return Array.isArray(m) ? m.filter(Boolean) : [m].filter(Boolean) } catch { return [raw].filter(Boolean) }
-}
-// 汇总该类型全部启用配置的模型（按 厂商+模型 去重，按优先级排序），选中模型时连同所属配置一起调用
-// 选中值使用 'provider/model' 复合键：同名模型可能来自不同厂商（如中转站与官方），必须区分
-function collectModelOptions(cfgs) {
-  const seen = new Set()
-  const out = []
-  const sorted = [...cfgs].filter(c => c.is_active).sort((a, b) => (b.priority || 0) - (a.priority || 0))
-  for (const c of sorted) {
-    for (const m of configModels(c)) {
-      const key = `${c.provider}/${m}`
-      if (seen.has(key)) continue
-      seen.add(key)
-      out.push({ key, model: m, provider: c.provider, configId: c.id, configName: c.name || c.provider })
-    }
-  }
-  return out
-}
-// 复合键 → 裸模型名（后端适配器按厂商校验模型名，不能带 provider 前缀）
-function bareModelName(key) {
-  if (!key) return ''
-  const i = key.indexOf('/')
-  return i >= 0 ? key.slice(i + 1) : key
-}
-function ownerConfigId(options, key) {
-  return key ? (options.find(o => o.key === key)?.configId || undefined) : undefined
-}
-function hasMultiConfigs(options) {
-  return new Set(options.map(o => o.configId)).size > 1
-}
+// 模型选项汇总/复合键换算等工具见 composables/useModelOptions（与项目配置弹窗共用）
+// 生效配置口径：项目级配置（dramas.model_*）优先，未选择时回退当前启用的默认配置（剧集不再单独锁定配置）
 const textModelOptions = computed(() => collectModelOptions(textConfigs.value))
 const imageModelOptions = computed(() => collectModelOptions(imageConfigs.value))
 const videoModelOptions = computed(() => collectModelOptions(videoConfigs.value))
 const selectedVideoConfig = computed(() => {
   const selected = videoModelOptions.value.find(option => option.key === videoModel.value)
   if (selected) return videoConfigs.value.find(config => config.id === selected.configId)
-  const locked = videoConfigs.value.find(config => config.id === lockedVideoConfigId.value && config.is_active)
-  if (locked) return locked
   return [...videoConfigs.value]
     .filter(config => config.is_active)
     .sort((a, b) => (b.priority || 0) - (a.priority || 0))[0]
@@ -2245,323 +2199,63 @@ function pruneStaleModel(modelRef, optionsRef) {
 pruneStaleModel(chatModel, textModelOptions)
 pruneStaleModel(imageModel, imageModelOptions)
 pruneStaleModel(videoModel, videoModelOptions)
-const textModelMultiCfg = computed(() => hasMultiConfigs(textModelOptions.value))
-const imageModelMultiCfg = computed(() => hasMultiConfigs(imageModelOptions.value))
-const videoModelMultiCfg = computed(() => hasMultiConfigs(videoModelOptions.value))
 
 // Production step helpers
-// ========== 任务列表面板 ==========
-async function loadGenTasks() {
-  if (!epId.value) return
-  try {
-    const data = await taskAPI.listByEpisode(epId.value)
-    genTasks.value = data?.tasks || []
-    genMerges.value = data?.merges || []
-
-    // 生成中/失败状态只存在内存里,页面刷新后丢失;从 sys_task 记录按分镜恢复,
-    // 否则已失败的镜头刷新后会退化成"待生成"
-    const videoTasks = genTasks.value.filter(t => t.type === 'video' && t.storyboard_id)
-    // 每个分镜只取最新一条任务(created_at 降序、id 兜底),旧任务不干预当前状态
-    const latestBySb = new Map()
-    for (const t of videoTasks) {
-      const prev = latestBySb.get(t.storyboard_id)
-      if (!prev
-        || String(t.created_at || '') > String(prev.created_at || '')
-        || (String(t.created_at || '') === String(prev.created_at || '') && t.id > prev.id)) {
-        latestBySb.set(t.storyboard_id, t)
-      }
-    }
-    // pending/failed 全量重建而非与现有值并集——否则刷新恢复的"生成中"在任务失败后
-    // 永不消退(videoTaskState 中 pending 优先于 failed,重试按钮还被禁用)
-    const pending = new Set()
-    const failed = {}
-    for (const [sbId, row] of latestBySb) {
-      // 分镜已有视频(失败后重试成功)时不再报历史错误
-      if (hasVid(sbs.value.find(s => s.id === sbId))) continue
-      // 注意这里用 row 而不是 t：t 是 i18n 翻译函数，被任务行遮蔽会让下方 fallback 崩溃
-      if (row.status === 'processing') pending.add(sbId)
-      else if (row.status === 'failed' || row.status === 'cancelled') {
-        failed[sbId] = row.error_msg || (row.status === 'cancelled' ? t('episode.status.cancelled') : t('episode.status.failed'))
-      }
-    }
-    // 刚点击提交、任务记录尚未加载出来的本地状态保留,避免状态闪退
-    for (const id of pendingVideoIds.value) if (!latestBySb.has(id)) pending.add(id)
-    for (const id of Object.keys(failedVideoMessages.value)) {
-      if (!latestBySb.has(Number(id))) failed[id] = failedVideoMessages.value[id]
-    }
-    pendingVideoIds.value = [...pending]
-    failedVideoMessages.value = failed
-  } catch { /* 静默失败,不打断其他刷新 */ }
+// ========== 任务列表面板（GenTaskDrawer 共享组件） ==========
+function fetchGenTasks() {
+  if (!epId.value) return Promise.resolve({ tasks: [], merges: [] })
+  return taskAPI.listByEpisode(epId.value)
 }
 
-function stopGenTasksPolling() {
-  if (genTasksTimer) { clearInterval(genTasksTimer); genTasksTimer = null }
+// 触发共享抽屉重新拉取（打开抽屉、提交任务后等场景）
+async function loadGenTasks() {
+  await taskDrawerRef.value?.reload()
+}
+
+// 抽屉加载完数据后回填本页状态：顶栏角标计数 + 分镜"生成中/失败"恢复
+function onGenTasksLoaded({ tasks, merges }) {
+  genTasks.value = tasks || []
+  genMerges.value = merges || []
+
+  // 生成中/失败状态只存在内存里,页面刷新后丢失;从 sys_task 记录按分镜恢复,
+  // 否则已失败的镜头刷新后会退化成"待生成"
+  const videoTasks = genTasks.value.filter(t => t.type === 'video' && t.storyboard_id)
+  // 每个分镜只取最新一条任务(created_at 降序、id 兜底),旧任务不干预当前状态
+  const latestBySb = new Map()
+  for (const t of videoTasks) {
+    const prev = latestBySb.get(t.storyboard_id)
+    if (!prev
+      || String(t.created_at || '') > String(prev.created_at || '')
+      || (String(t.created_at || '') === String(prev.created_at || '') && t.id > prev.id)) {
+      latestBySb.set(t.storyboard_id, t)
+    }
+  }
+  // pending/failed 全量重建而非与现有值并集——否则刷新恢复的"生成中"在任务失败后
+  // 永不消退(videoTaskState 中 pending 优先于 failed,重试按钮还被禁用)
+  const pending = new Set()
+  const failed = {}
+  for (const [sbId, row] of latestBySb) {
+    // 分镜已有视频(失败后重试成功)时不再报历史错误
+    if (hasVid(sbs.value.find(s => s.id === sbId))) continue
+    // 注意这里用 row 而不是 t：t 是 i18n 翻译函数，被任务行遮蔽会让下方 fallback 崩溃
+    if (row.status === 'processing') pending.add(sbId)
+    else if (row.status === 'failed' || row.status === 'cancelled') {
+      failed[sbId] = row.error_msg || (row.status === 'cancelled' ? t('episode.status.cancelled') : t('episode.status.failed'))
+    }
+  }
+  // 刚点击提交、任务记录尚未加载出来的本地状态保留,避免状态闪退
+  for (const id of pendingVideoIds.value) if (!latestBySb.has(id)) pending.add(id)
+  for (const id of Object.keys(failedVideoMessages.value)) {
+    if (!latestBySb.has(Number(id))) failed[id] = failedVideoMessages.value[id]
+  }
+  pendingVideoIds.value = [...pending]
+  failedVideoMessages.value = failed
 }
 
 const genTaskActiveCount = computed(() =>
   genTasks.value.filter(t => t.status === 'processing').length +
   genMerges.value.filter(m => m.status === 'processing' || m.status === 'pending').length
 )
-const genTaskDoneCount = computed(() =>
-  genTasks.value.filter(t => t.status === 'completed').length +
-  genMerges.value.filter(m => m.status === 'completed').length
-)
-const genTaskFailedCount = computed(() =>
-  genTasks.value.filter(t => t.status === 'failed' || t.status === 'cancelled').length +
-  genMerges.value.filter(m => m.status === 'failed').length
-)
-// 已结束（可清理）的任务数：仅统计 sys_task 行，merges 不在清理范围
-const genTaskFinishedCount = computed(() =>
-  genTasks.value.filter(t => t.status !== 'processing').length
-)
-
-// 任务行操作：查询进度/取消（进行中）/ 重试（失败、已取消）/ 删除（非进行中）
-// 文本任务为同步 Agent 请求，无上游可查/可取消/可重试，结束后仅可删除
-function genTaskRowActions(row) {
-  if (row.kind === 'merge') return []
-  if (row.kind === 'text') {
-    return row.status === 'processing' ? [] : [{ key: 'delete', label: t('episode.tasks.actionDelete'), run: genTaskDelete }]
-  }
-  const actions = []
-  if (row.status === 'processing') {
-    actions.push({ key: 'probe', label: t('episode.tasks.actionProbe'), run: genTaskRefresh })
-    actions.push({ key: 'cancel', label: t('episode.tasks.actionCancel'), run: genTaskCancel })
-  } else {
-    if (row.status === 'failed' || row.status === 'cancelled') {
-      actions.push({ key: 'retry', label: t('episode.tasks.actionRetry'), run: genTaskRetry })
-    }
-    actions.push({ key: 'delete', label: t('episode.tasks.actionDelete'), run: genTaskDelete })
-  }
-  return actions
-}
-
-function toggleTaskExpand(row) {
-  expandedTaskKey.value = expandedTaskKey.value === row.key ? '' : row.key
-}
-
-/** 进行中任务的一行进度摘要：排队中(含等待时长) / 上游百分比 / 已轮询次数 */
-function genTaskProgressLine(row) {
-  if (row.status !== 'processing') return ''
-  if (row.kind === 'text') return t('episode.tasks.textRunning')
-  const p = row.progress
-  if (!p) return t('episode.tasks.stageSubmit')
-  if (p.stage === 'submit') return t('episode.tasks.stageSubmit')
-  if (p.upstream === 'pending' || p.upstream === 'queued') {
-    const started = new Date(row.createdAt).getTime()
-    const mins = Number.isFinite(started) ? Math.max(1, Math.round((Date.now() - started) / 60000)) : 0
-    if (mins) return t('episode.tasks.stageQueued', { m: mins })
-  }
-  if (p.percent > 0) return t('episode.tasks.progressPercent', { p: p.percent })
-  if (p.attempts) return t('episode.tasks.progressLine', { n: p.attempts })
-  return t('episode.tasks.stagePoll')
-}
-
-/** 用户主动向上游查一次进度（单次 pollTick，可能直接推进到完成/失败） */
-async function genTaskRefresh(row) {
-  try {
-    const r = await taskAPI.refresh(row.id)
-    const outcome = r?.outcome
-    if (outcome === 'completed') toast.success(t('episode.tasks.probeCompleted'))
-    else if (outcome === 'failed') toast.error(t('episode.tasks.probeFailed'))
-    else if (outcome === 'not-eligible') toast.info(t('episode.tasks.probeSubmitted'))
-    else toast.info(t('episode.tasks.probeProcessing'))
-    await loadGenTasks()
-  } catch (e) { toastError(e) }
-}
-
-function genTaskFmtTime(ts) {
-  return ts ? String(ts).replace('T', ' ').slice(0, 19) : ''
-}
-
-const taskConfirm = reactive({ open: false, title: '', message: '', run: null })
-
-function confirmTaskAction(title, message, run) {
-  taskConfirm.title = title
-  taskConfirm.message = message
-  taskConfirm.run = run
-  taskConfirm.open = true
-}
-
-async function runTaskConfirm() {
-  const run = taskConfirm.run
-  taskConfirm.open = false
-  taskConfirm.run = null
-  if (!run) return
-  try { await run() } catch (e) { toastError(e) }
-}
-
-async function genTaskCancel(row) {
-  try {
-    await taskAPI.cancel(row.id)
-    await loadGenTasks()
-  } catch (e) { toastError(e) }
-}
-
-async function genTaskRetry(row) {
-  try {
-    await taskAPI.retry(row.id)
-    toast.success(t('episode.tasks.retried'))
-    await loadGenTasks()
-  } catch (e) { toastError(e) }
-}
-
-function genTaskDelete(row) {
-  confirmTaskAction(
-    t('episode.tasks.actionDelete'),
-    t('episode.tasks.deleteConfirm', { n: row.id }),
-    async () => {
-      await taskAPI.del(row.id)
-      await loadGenTasks()
-    },
-  )
-}
-
-function genTaskClear() {
-  const n = genTaskFinishedCount.value
-  if (!n) return
-  confirmTaskAction(
-    t('episode.tasks.clear'),
-    t('episode.tasks.clearConfirm', { n }),
-    async () => {
-      const r = await taskAPI.clear('finished')
-      toast.success(t('episode.tasks.cleared', { n: r?.deleted ?? 0 }))
-      await loadGenTasks()
-    },
-  )
-}
-
-function genTaskTargetLabel(task) {
-  if (task.type === 'text') {
-    const agentType = (parseTaskProgress(task.params) || {}).agentType
-    const names = {
-      script_rewriter: t('settings.agents.scriptRewriter'),
-      extractor: t('settings.agents.extractor'),
-      storyboard_breaker: t('settings.agents.storyboardBreaker'),
-      prompt_generator: t('settings.agents.promptGenerator'),
-    }
-    return names[agentType] || t('common.serviceType.text')
-  }
-  if (task.storyboard_id) {
-    const sb = sbs.value.find(x => x.id === task.storyboard_id)
-    return t('episode.tasks.sbN', { n: sb?.storyboard_number ?? sb?.storyboardNumber ?? task.storyboard_id })
-  }
-  if (task.character_id) {
-    const c = chars.value.find(x => x.id === task.character_id)
-    return `${t('common.role')} · ${c?.name || task.character_id}`
-  }
-  if (task.scene_id) {
-    const s = scenes.value.find(x => x.id === task.scene_id)
-    return `${t('common.scene')} · ${s?.location || task.scene_id}`
-  }
-  if (task.prop_id) {
-    const p = propItems.value.find(x => x.id === task.prop_id)
-    return `${t('common.prop')} · ${p?.name || task.prop_id}`
-  }
-  return t('episode.tasks.generic')
-}
-
-// 统一行结构：image / video / merge 三类合并按时间倒序
-function parseTaskProgress(raw) {
-  if (!raw) return null
-  try { return JSON.parse(raw) } catch { return null }
-}
-const expandedTaskKey = ref('')
-
-// 注意：参数名不可用 t —— 会遮蔽外层 i18n 翻译函数（见 genTaskRows 内的历史注释）
-function genTaskRefSummary(task) {
-  const p = parseTaskProgress(task.params) || {}
-  const refs = []
-  const nImg = (p.referenceImages || []).length
-  const nVid = (p.referenceVideoUrls || []).length
-  const nAud = (p.referenceAudioUrls || []).length
-  const frames = [p.firstFrameUrl, p.lastFrameUrl].filter(Boolean).length
-  if (nImg) refs.push(t('episode.tasks.refImages', { n: nImg }))
-  if (nVid) refs.push(t('episode.tasks.refVideos', { n: nVid }))
-  if (nAud) refs.push(t('episode.tasks.refAudios', { n: nAud }))
-  if (frames) refs.push(t('episode.tasks.refFrames', { n: frames }))
-  const specs = []
-  if (task.type === 'video') {
-    if (p.duration) specs.push(t('episode.tasks.specDuration', { n: p.duration }))
-    if (p.aspectRatio) specs.push(p.aspectRatio)
-    if (p.resolution) specs.push(p.resolution)
-  }
-  if (task.type === 'image' && p.size) specs.push(p.size)
-  return [...refs, ...specs].join(' · ')
-}
-
-const genTaskRows = computed(() => {
-  const taskRows = genTasks.value.map(t => ({
-    key: `task-${t.id}`,
-    kind: t.type, // image | video
-    id: t.id,
-    targetLabel: genTaskTargetLabel(t),
-    provider: t.provider || '',
-    model: t.model || '',
-    status: t.status || 'processing',
-    errorMsg: t.error_msg || '',
-    previewUrl: t.local_path || t.result_url || '',
-    prompt: t.prompt || '',
-    createdAt: t.created_at || '',
-    completedAt: t.completed_at || '',
-    progress: parseTaskProgress(t.progress),
-    upstreamId: t.task_id || '',
-    refSummary: genTaskRefSummary(t),
-  }))
-  const mergeRows = genMerges.value.map(m => ({
-    key: `merge-${m.id}`,
-    kind: 'merge',
-    id: m.id,
-    targetLabel: t('episode.tasks.fullMerge'),
-    provider: m.provider || 'ffmpeg',
-    model: m.model || '',
-    status: m.status || 'pending',
-    errorMsg: m.error_msg || '',
-    previewUrl: m.merged_url || '',
-    prompt: '',
-    createdAt: m.created_at || '',
-    completedAt: m.completed_at || '',
-  }))
-  return [...taskRows, ...mergeRows].sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
-})
-
-function genTaskKindLabel(kind) {
-  return kind === 'image' ? t('common.serviceType.image') : kind === 'video' ? t('common.serviceType.video') : kind === 'text' ? t('common.serviceType.text') : t('episode.tasks.mergeKind')
-}
-
-function genTaskStatusLabel(status) {
-  if (status === 'completed') return t('episode.status.done')
-  if (status === 'failed') return t('episode.status.failed')
-  if (status === 'cancelled') return t('episode.status.cancelled')
-  return t('episode.status.generating')
-}
-
-// 映射到现有 video-task-status 的样式类:is-done / is-pending / is-failed
-function genTaskStateClass(status) {
-  if (status === 'completed') return 'done'
-  if (status === 'failed' || status === 'cancelled') return 'failed'
-  return 'pending'
-}
-
-// local_path 为站内相对路径补 '/',远端 result_url 原样使用
-function genTaskPreviewSrc(url) {
-  if (!url) return ''
-  return /^https?:\/\//.test(url) ? url : '/' + url
-}
-
-function genTaskDuration(row) {
-  if (!row.createdAt || !row.completedAt) return ''
-  const ms = new Date(row.completedAt).getTime() - new Date(row.createdAt).getTime()
-  if (!Number.isFinite(ms) || ms < 0) return ''
-  return ms >= 60000 ? `${Math.floor(ms / 60000)}m${Math.round((ms % 60000) / 1000)}s` : `${Math.round(ms / 1000)}s`
-}
-
-// 抽屉打开且有进行中任务时,4s 轮询;关闭或全部结束时停止
-watch([taskDrawer, genTaskActiveCount], ([open, active]) => {
-  stopGenTasksPolling()
-  if (open && active > 0) {
-    genTasksTimer = setInterval(loadGenTasks, 4000)
-  }
-})
 
 const productionBlockMessage = computed(() => {
   if (!scriptContent.value) return t('episode.prod.scriptFirst')
@@ -3633,147 +3327,12 @@ onMounted(() => setTimeout(() => autoTour('episode', EPISODE_TOUR, t), 900))
   --sel-glow: var(--bg-hover);
 }
 
-.studio-topbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  flex-shrink: 0;
-  min-height: 40px;
-  padding: 4px 10px;
-  border-radius: var(--radius-lg);
-  background: var(--header-bg);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow-card);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-}
-
 .studio-topbar-main,
 .sidebar,
 .main {
   background: var(--surface-raised);
   border: 1px solid var(--border);
   box-shadow: var(--shadow-card);
-}
-
-.studio-topbar-main {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0;
-  border: 0;
-  box-shadow: none;
-  backdrop-filter: none;
-  background: transparent;
-  min-width: 0;
-}
-
-/* 用更高特异性压过后面的 .back-btn{height:40px}，保持顶栏紧凑 */
-.studio-topbar .topbar-back {
-  width: auto;
-  min-width: 72px;
-  padding: 0 12px;
-  height: 26px;
-  border-radius: var(--radius-pill);
-  white-space: nowrap;
-  font-size: 11px;
-}
-
-.studio-identity {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-.studio-overline {
-  display: none;
-  font-size: 8px;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--text-3);
-}
-
-.studio-title-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-.studio-title {
-  font-size: 13px;
-  line-height: 1;
-  letter-spacing: -0.04em;
-  white-space: nowrap;
-}
-
-.studio-episode-chip {
-  display: inline-flex;
-  align-items: center;
-  height: 18px;
-  padding: 0 8px;
-  border-radius: var(--radius-pill);
-  background: var(--accent-bg);
-  color: var(--accent-text);
-  font-size: 9px;
-  font-weight: 700;
-}
-
-.studio-meta-row {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  flex-wrap: nowrap;
-  min-width: 0;
-}
-
-.studio-meta-pill {
-  display: inline-flex;
-  align-items: center;
-  height: 18px;
-  padding: 0 8px;
-  border-radius: var(--radius-pill);
-  background: var(--accent-bg);
-  color: var(--accent-text);
-  font-size: 8px;
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.studio-meta-pill.is-stage {
-  background: var(--accent-bg);
-  color: var(--accent-text);
-}
-.studio-meta-pill.is-progress {
-  background: var(--success-bg);
-  color: var(--success);
-}
-.studio-meta-inline {
-  font-size: 9px;
-  color: var(--text-3);
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.studio-topbar-side {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-shrink: 0;
-}
-
-.studio-actions {
-  display: flex;
-  gap: 6px;
-}
-.studio-topbar .btn {
-  height: 26px;
-  padding: 0 9px;
-  font-size: 10.5px;
-  white-space: nowrap;
 }
 
 .studio-body {
@@ -6142,20 +5701,6 @@ button.video-task-metric.on { box-shadow: 0 0 0 2px var(--accent); }
 .task-drawer-trigger {
   position: relative;
 }
-.task-drawer-badge {
-  min-width: 16px;
-  height: 16px;
-  padding: 0 4px;
-  border-radius: 999px;
-  background: var(--accent);
-  color: var(--action-primary-text);
-  font-size: 10px;
-  font-weight: 700;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  line-height: 1;
-}
 
 /* 右侧抽屉 */
 .task-drawer-overlay {
@@ -6286,26 +5831,8 @@ button.video-task-metric.on { box-shadow: 0 0 0 2px var(--accent); }
     gap: 8px;
   }
 
-  .studio-topbar-main {
-    align-items: flex-start;
-  }
-
-  .studio-topbar {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .studio-topbar-side {
-    justify-content: space-between;
-  }
-
   .sidebar {
     max-height: 340px;
-  }
-
-  .studio-topbar-side,
-  .studio-actions {
-    flex-wrap: wrap;
   }
 
   .toolbar-right,
@@ -6416,4 +5943,38 @@ button.video-task-metric.on { box-shadow: 0 0 0 2px var(--accent); }
   }
 
 }
+
+/* ===== 资产参考图 / 从素材库添加 ===== */
+.refimg-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 8px;
+}
+.refimg-item {
+  position: relative; aspect-ratio: 1; border-radius: var(--radius, 8px);
+  overflow: hidden; border: 1px solid var(--surface-outline); background: var(--surface-muted);
+}
+.refimg-item img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.refimg-del {
+  position: absolute; top: 3px; right: 3px; width: 17px; height: 17px;
+  display: flex; align-items: center; justify-content: center;
+  border: none; border-radius: 50%; cursor: pointer;
+  background: rgba(0, 0, 0, 0.62); color: #fff;
+  transition: background 0.15s var(--ease-out);
+}
+.refimg-del:hover { background: rgba(220, 38, 38, 0.9); }
+.library-pick-body { display: flex; flex-direction: column; gap: 8px; max-height: 60vh; overflow-y: auto; }
+.library-pick-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px; text-align: left; cursor: pointer;
+  border: 1px solid var(--surface-outline); border-radius: var(--radius, 8px);
+  background: var(--surface-muted); color: var(--text-1);
+  transition: border-color 0.15s var(--ease-out), background 0.15s var(--ease-out);
+}
+.library-pick-row:hover { border-color: var(--accent); background: var(--bg-active); }
+.library-pick-row:disabled { opacity: 0.6; cursor: default; }
+.library-pick-thumb { width: 36px; height: 36px; border-radius: 6px; object-fit: cover; flex-shrink: 0; background: var(--bg-active); }
+.library-pick-thumb-empty { display: inline-flex; visibility: hidden; }
+.library-pick-name { font-weight: 600; font-size: 13px; flex-shrink: 0; }
+.library-pick-meta { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.library-pick-empty { padding: 20px 0; text-align: center; color: var(--text-3); font-size: 13px; }
+.library-pick-hint { margin: 4px 0 0; font-size: 12px; }
 </style>

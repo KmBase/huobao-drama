@@ -118,18 +118,20 @@ app.post('/', async (c) => {
   const videoBody = type === 'video' ? normalizeVideoRequest(body) : null
 
   try {
-    // 请求显式指定 config_id（工作台模型下拉跨厂商切换）时优先；
-    // 未指定才回退到集锁定配置，避免锁定配置与所选模型错配（如锁定 Seedance 却传 MiniMax 模型名）
+    // 请求显式指定 config_id（工作台按项目级配置换算）时优先；未指定回退当前启用的默认配置。
+    // 生成配置只在项目级维护（dramas.model_*），剧集不再单独锁定配置。
     let configId: number | undefined = body.config_id
-    let episodeResolution: string | undefined
+    let videoResolution: string | undefined
     let storyboardDramaId: number | undefined
     if (body.storyboard_id) {
       const [sb] = await db.select().from(schema.storyboards).where(eq(schema.storyboards.id, Number(body.storyboard_id)))
       if (sb) {
         const [ep] = await db.select().from(schema.episodes).where(eq(schema.episodes.id, sb.episodeId))
-        const locked = type === 'image' ? ep?.imageConfigId : ep?.videoConfigId
-        if (locked != null && configId == null) configId = locked
-        if (type === 'video' && ep?.resolution) episodeResolution = ep.resolution
+        if (ep && type === 'video') {
+          // 分辨率是项目级配置（dramas.resolution），各集继承
+          const [drama] = await db.select().from(schema.dramas).where(eq(schema.dramas.id, ep.dramaId))
+          if (drama?.resolution) videoResolution = drama.resolution
+        }
         storyboardDramaId = ep?.dramaId ?? undefined
       }
     }
@@ -189,7 +191,7 @@ app.post('/', async (c) => {
         generateAudio: videoBody!.generate_audio,
         duration: videoBody!.duration,
         aspectRatio: videoBody!.aspect_ratio,
-        resolution: episodeResolution || videoBody!.resolution,
+        resolution: videoResolution || videoBody!.resolution,
         seed: videoBody!.seed,
         promptExtend: videoBody!.prompt_extend,
         watermark: videoBody!.watermark,
@@ -270,7 +272,8 @@ app.post('/:id/cancel', async (c) => {
   return success(c)
 })
 
-// POST /tasks/:id/retry — 重试失败/已取消的任务：还原原始入参新建任务（保留历史）
+// POST /tasks/:id/retry — 重试失败/已取消的任务：先查上游进度，能续则续跑原任务；
+// 上游已失败/提交期失败时原地重新提交（复用同一条记录，保留任务历史与进度）
 app.post('/:id/retry', async (c) => {
   const id = Number(c.req.param('id'))
   if (!Number.isFinite(id)) return badRequest(c, '无效的任务 ID')

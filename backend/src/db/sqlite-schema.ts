@@ -15,6 +15,11 @@ export const sqliteSchemaStatements = [
     genre TEXT,
     style TEXT DEFAULT '3d',
     aspect_ratio TEXT DEFAULT '16:9',
+    model_chat TEXT,
+    model_image TEXT,
+    model_video TEXT,
+    language TEXT,
+    resolution TEXT DEFAULT '720p',
     total_episodes INTEGER DEFAULT 1,
     total_duration INTEGER DEFAULT 0,
     status TEXT NOT NULL DEFAULT 'draft',
@@ -34,6 +39,8 @@ export const sqliteSchemaStatements = [
     content TEXT,
     script_content TEXT,
     description TEXT,
+    summary TEXT,
+    hook TEXT,
     duration INTEGER DEFAULT 0,
     status TEXT DEFAULT 'draft',
     video_url TEXT,
@@ -78,6 +85,7 @@ export const sqliteSchemaStatements = [
     storyboard_count INTEGER DEFAULT 1,
     image_url TEXT,
     status TEXT DEFAULT 'pending',
+    reference_images TEXT,
     local_path TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
@@ -203,6 +211,25 @@ export const sqliteSchemaStatements = [
     UNIQUE (value)
   )`,
 
+  `CREATE TABLE IF NOT EXISTS style_packs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    value TEXT NOT NULL,
+    script_guide TEXT,
+    episode_split_guide TEXT,
+    extractor_guide TEXT,
+    storyboard_guide TEXT,
+    prompt_guide TEXT,
+    dialogue_guide TEXT,
+    pacing_guide TEXT,
+    description TEXT,
+    sort_order INTEGER DEFAULT 0,
+    is_active INTEGER DEFAULT 1,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE (value)
+  )`,
+
   `CREATE TABLE IF NOT EXISTS sys_task (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     type TEXT NOT NULL,
@@ -221,6 +248,7 @@ export const sqliteSchemaStatements = [
     local_path TEXT,
     status TEXT DEFAULT 'processing',
     error_msg TEXT,
+    result TEXT,
     progress TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
@@ -357,6 +385,50 @@ export const stylePresetSeeds = [
   },
 ]
 
+// 叙事风格包种子 — 按 agent 分段的工作流指导（中文，分别注入四个 agent 的 instructions）
+export const stylePackSeeds = [
+  {
+    name: '快节奏爽剧',
+    value: 'fast-paced',
+    scriptGuide: '对白短促有力，单句尽量不超过 15 字；少铺垫、直给冲突；允许少量金句/打脸台词，但不要说教式长独白。每集开场 10 秒内进入冲突；单集至少 2 个情绪爆点（打脸/反转/身份揭露）；每场戏只服务一个目的，推进慢的过场戏直接删除或压缩成一句动作描写。',
+    extractorGuide: '资产描述客观简洁，突出角色/道具的辨识度特征（供快速识别），不做气氛渲染。',
+    storyboardGuide: '镜头密度高，平均每 3-5 秒一切；情绪爆点用特写或快速推镜；转场利落，不使用长空镜。',
+    promptGuide: '视频提示词强调动势与快切节奏：主体动作明确、幅度大，镜头运动干脆（快速推拉/甩镜）；爆点画面给足冲击力。',
+    description: '短平快节奏，强冲突强反转，适合战神/赘婿/逆袭类题材',
+    sortOrder: 1,
+  },
+  {
+    name: '悬疑烧脑',
+    value: 'suspense',
+    scriptGuide: '对白克制、信息不对称，角色话里有话；关键线索藏在台词细节中，不直接点破；避免角色替观众总结剧情。每集结尾必须留钩子（新谜团/身份暗示/危机）；先给结果再补动机的倒叙可用；解谜节奏层层递进，单集揭开一层谜底的同时抛出新谜团。',
+    extractorGuide: '角色与道具描述保留可作线索的细节（伤疤/配饰/随身物），描述中性、不带情绪结论，给后续反转留解释空间。',
+    storyboardGuide: '多用特写捕捉微表情和道具细节；气氛镜头（空镜、光影）可适当保留用于铺垫；关键转折前一拍留静默。',
+    promptGuide: '视频提示词强调悬念氛围：低调布光、阴影与剪影、浅景深聚焦线索道具；镜头运动缓慢克制（缓推/缓摇），关键信息用停顿。',
+    description: '线索埋设 + 层层反转，适合刑侦/复仇/身份谜团类题材',
+    sortOrder: 2,
+  },
+  {
+    name: '甜宠轻喜',
+    value: 'sweet-romance',
+    scriptGuide: '对白轻松有生活感，允许俏皮互怼和内心 OS；情感递进靠细节（小动作、眼神）而非直白表白；避免狗血误会拖节奏。每集至少一个心动瞬间（暧昧拉扯/意外接触/护短）；误会线索当集发起、两集内化解；整体节奏舒缓但不拖沓，单集保留一个轻笑点。',
+    extractorGuide: '角色描述突出亲和力与时尚感细节（穿搭/发型/小配饰），场景描述保留生活气息元素，道具偏日常温馨。',
+    storyboardGuide: '双人镜头与眼神特写为主；氛围光效和慢镜头用于心动瞬间；色调明快，转场柔和。',
+    promptGuide: '视频提示词强调柔和氛围：暖调逆光、慢动作与浅景深、轻微镜头呼吸感；心动瞬间用慢镜环绕或定格。',
+    description: '甜而不腻的情感拉扯，适合都市爱情/校园/婚恋类题材',
+    sortOrder: 3,
+  },
+  {
+    name: '译制剧',
+    value: 'dubbed-drama',
+    scriptGuide: '对白带自然可读的翻译腔：适度使用"哦，我的上帝""看在上帝的份上""我亲爱的朋友"等译制片表达，点到为止不堆砌；句式可带人称代词冗余、长定语"的"字结构、倒装语序和连接词（但是/而且/然而）；称谓偏西化（先生/女士/警官/医生），人名地名前后统一译名；情绪表达略外显，符合配音表演感。避免网络流行语、古风腔、方言梗和生硬机翻感。正剧节奏，单集 1-2 个小高潮，冲突集中在中后段；允许必要的背景交代戏，但用对白自然带出而非大段旁白；每集结尾留悬念。',
+    extractorGuide: '人名地名采用统一译名并在描述中标注；角色描述保留原作地域特征（服饰/体貌），道具与场景体现异域感。',
+    storyboardGuide: '中近景对话为主，正反打节奏平稳；场景转换可用叠化；服化道与布景体现原作地域感。',
+    promptGuide: '视频提示词强调正剧质感：镜头平稳（横移/固定机位为主），画面庄重、光线自然；人物表演幅度适配配音节奏。',
+    description: '译制腔对白 + 正剧节奏，适合海外翻拍/异域背景/配音短剧题材',
+    sortOrder: 4,
+  },
+]
+
 /**
  * 旧版种子 prompt（v1 一句话风格描述）— 用于内容寻址升级：
  * 仅当库中行的 prompt 仍等于旧种子值（未被用户在设置页编辑过）才覆盖为新 prompt
@@ -414,11 +486,36 @@ export function initSqliteSchema(sqlite: Database.Database) {
   // 存量库升级：CREATE TABLE IF NOT EXISTS 不会给已存在的表补列，新字段必须走幂等 ALTER
   ensureColumn(sqlite, 'ai_service_configs', 'protocol', 'TEXT', LEGACY_PROTOCOL_BACKFILL_SQL)
   ensureColumn(sqlite, 'sys_task', 'progress', 'TEXT')
+  ensureColumn(sqlite, 'sys_task', 'result', 'TEXT')
   ensureColumn(sqlite, 'sys_task', 'episode_id', 'INTEGER')
+  ensureColumn(sqlite, 'dramas', 'style_pack', 'TEXT')
+  ensureColumn(sqlite, 'dramas', 'source_content', 'TEXT')
+  // 项目级生成配置：模型覆盖（'provider/model' 复合键，空=跟随配置默认）与内容语言（空=跟随全局）
+  ensureColumn(sqlite, 'dramas', 'model_chat', 'TEXT')
+  ensureColumn(sqlite, 'dramas', 'model_image', 'TEXT')
+  ensureColumn(sqlite, 'dramas', 'model_video', 'TEXT')
+  ensureColumn(sqlite, 'dramas', 'language', 'TEXT')
+  // 项目级视频分辨率（480p/720p/1080p，各集继承），旧的 episodes.resolution 只读废弃
+  ensureColumn(sqlite, 'dramas', 'resolution', "TEXT DEFAULT '720p'")
+  ensureColumn(sqlite, 'episodes', 'summary', 'TEXT')
+  ensureColumn(sqlite, 'episodes', 'hook', 'TEXT')
+  ensureColumn(sqlite, 'scenes', 'reference_images', 'TEXT')
+  // style_packs 四列化（按 agent 分段）：旧三列内容回填（script=对白+节奏，prompt=分镜）
+  ensureColumn(sqlite, 'style_packs', 'episode_split_guide', 'TEXT')
+  ensureColumn(sqlite, 'style_packs', 'script_guide', 'TEXT',
+    "UPDATE style_packs SET script_guide = TRIM(COALESCE(dialogue_guide,'') || CHAR(10) || COALESCE(pacing_guide,'')) WHERE script_guide IS NULL AND (dialogue_guide IS NOT NULL OR pacing_guide IS NOT NULL)")
+  ensureColumn(sqlite, 'style_packs', 'extractor_guide', 'TEXT')
+  ensureColumn(sqlite, 'style_packs', 'prompt_guide', 'TEXT',
+    'UPDATE style_packs SET prompt_guide = storyboard_guide WHERE prompt_guide IS NULL AND storyboard_guide IS NOT NULL')
 
   const insertSeed = sqlite.prepare(SEED_SQL)
   const upgradeSeed = sqlite.prepare(UPGRADE_SQL)
   const removeSeed = sqlite.prepare(REMOVE_SQL)
+  const insertPackSeed = sqlite.prepare('INSERT INTO style_packs ("name", "value", "script_guide", "extractor_guide", "storyboard_guide", "prompt_guide", "description", "sort_order", "created_at", "updated_at") SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM style_packs WHERE value = ?)')
+  for (const s of stylePackSeeds) {
+    const ts = new Date().toISOString()
+    insertPackSeed.run(s.name, s.value, s.scriptGuide, s.extractorGuide, s.storyboardGuide, s.promptGuide, s.description, s.sortOrder, ts, ts, s.value)
+  }
   for (const s of stylePresetSeeds) {
     const ts = new Date().toISOString()
     insertSeed.run(s.name, s.value, s.prompt, s.description, s.sortOrder, ts, ts, s.value)
@@ -458,7 +555,32 @@ export async function initLibsqlSchema(client: Client) {
   // 存量库升级：同 better-sqlite3 路径，幂等补列
   await ensureColumnLibsql(client, 'ai_service_configs', 'protocol', 'TEXT', LEGACY_PROTOCOL_BACKFILL_SQL)
   await ensureColumnLibsql(client, 'sys_task', 'progress', 'TEXT')
+  await ensureColumnLibsql(client, 'sys_task', 'result', 'TEXT')
   await ensureColumnLibsql(client, 'sys_task', 'episode_id', 'INTEGER')
+  await ensureColumnLibsql(client, 'dramas', 'style_pack', 'TEXT')
+  await ensureColumnLibsql(client, 'dramas', 'source_content', 'TEXT')
+  await ensureColumnLibsql(client, 'dramas', 'model_chat', 'TEXT')
+  await ensureColumnLibsql(client, 'dramas', 'model_image', 'TEXT')
+  await ensureColumnLibsql(client, 'dramas', 'model_video', 'TEXT')
+  await ensureColumnLibsql(client, 'dramas', 'language', 'TEXT')
+  await ensureColumnLibsql(client, 'dramas', 'resolution', "TEXT DEFAULT '720p'")
+  await ensureColumnLibsql(client, 'episodes', 'summary', 'TEXT')
+  await ensureColumnLibsql(client, 'episodes', 'hook', 'TEXT')
+  await ensureColumnLibsql(client, 'scenes', 'reference_images', 'TEXT')
+  await ensureColumnLibsql(client, 'style_packs', 'episode_split_guide', 'TEXT')
+  await ensureColumnLibsql(client, 'style_packs', 'script_guide', 'TEXT',
+    "UPDATE style_packs SET script_guide = TRIM(COALESCE(dialogue_guide,'') || CHAR(10) || COALESCE(pacing_guide,'')) WHERE script_guide IS NULL AND (dialogue_guide IS NOT NULL OR pacing_guide IS NOT NULL)")
+  await ensureColumnLibsql(client, 'style_packs', 'extractor_guide', 'TEXT')
+  await ensureColumnLibsql(client, 'style_packs', 'prompt_guide', 'TEXT',
+    'UPDATE style_packs SET prompt_guide = storyboard_guide WHERE prompt_guide IS NULL AND storyboard_guide IS NOT NULL')
+
+  for (const s of stylePackSeeds) {
+    const ts = new Date().toISOString()
+    await client.execute({
+      sql: 'INSERT INTO style_packs ("name", "value", "script_guide", "extractor_guide", "storyboard_guide", "prompt_guide", "description", "sort_order", "created_at", "updated_at") SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM style_packs WHERE value = ?)',
+      args: [s.name, s.value, s.scriptGuide, s.extractorGuide, s.storyboardGuide, s.promptGuide, s.description, s.sortOrder, ts, ts, s.value],
+    })
+  }
 
   for (const s of stylePresetSeeds) {
     const ts = new Date().toISOString()

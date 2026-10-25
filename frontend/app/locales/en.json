@@ -124,6 +124,7 @@
     "emptyTitle": "Create your first drama project",
     "emptyDesc": "Pick an episode to start producing after creation.",
     "deleted": "Deleted",
+    "created": "Project created",
     "noEpisodes": "No episodes yet",
     "episodeN": "Episode {n}",
     "ratio": {
@@ -145,6 +146,8 @@
       "namePlaceholder": "e.g. Urban romance drama “The Time Post Office”",
       "style": "Visual style",
       "stylePlaceholder": "Select a style",
+      "stylePack": "Script style",
+      "stylePackPlaceholder": "None (can be set later in the project)",
       "aspectRatio": "Aspect ratio",
       "aspectRatioPlaceholder": "Select aspect ratio",
       "aspectRatioHint": "Fixed after creation; all videos will use this ratio",
@@ -169,12 +172,31 @@
       "addEpisode": "Add Episode"
     },
     "tabs": {
+      "source": "Source",
+      "outline": "Outline",
       "episodes": "Episodes",
-      "assets": "Asset Library"
+      "assets": "Assets"
+    },
+    "source": {
+      "charCount": "{n} characters",
+      "saving": "Saving...",
+      "saved": "Source saved",
+      "placeholder": "Paste the full novel. After saving, start AI split here; the result goes into each episode's original content.",
+      "hint": "The source is project-level text; AI split divides it into episodes at natural plot breaks, each ending on a hook."
+    },
+    "outline": {
+      "hint": "The outline is the whole-series blueprint: saving syncs a local outline md injected into all agents as global prompt (hook chaining across episodes).",
+      "empty": "No episodes yet. Use AI split in the Source tab, or add episodes manually.",
+      "saveSync": "Save & sync outline",
+      "saving": "Saving...",
+      "saved": "Outline saved and synced",
+      "titlePlaceholder": "Episode title",
+      "summaryPlaceholder": "Episode summary (plot digest for agents)",
+      "hookPlaceholder": "Ending hook (what cliffhanger this episode leaves)",
+      "chain": "Next episode opens from this hook"
     },
     "ep": {
       "statusTitle": "Click to set episode status",
-      "resTitle": "Click to change video resolution",
       "deleteTitle": "Delete this episode",
       "enter": "Open Studio",
       "scriptReady": "Script ready",
@@ -183,10 +205,7 @@
       "emptyCreateText": "Click to create the first episode",
       "addNextTitle": "Add Episode {n}",
       "addNextText": "Add Episode {n}",
-      "episodeN": "Episode {n}",
-      "res720": "720p · HD",
-      "res480": "480p · Smooth",
-      "resSwitched": "Video resolution switched to {res}"
+      "episodeN": "Episode {n}"
     },
     "epCreate": {
       "title": "Create Episode",
@@ -194,13 +213,86 @@
       "titlePlaceholder": "Auto-named by episode number",
       "titleHint": "If left blank, it will be named automatically, e.g. “{example}”.",
       "example": "Episode {n}",
-      "resolution": "Video resolution",
-      "resolutionPlaceholder": "Select resolution",
-      "resolutionHint": "Videos of this episode are generated at this resolution; you can still change it on the episode card later.",
-      "lockCopy": "The currently active image and video generation capabilities will be locked on creation.",
+      "inheritCopy": "Generation models and styles follow the project configuration; change them in Project Configuration.",
       "creating": "Creating...",
       "create": "Create",
       "added": "Episode added"
+    },
+    "config": {
+      "button": "Settings",
+      "title": "Project Settings",
+      "name": "Project name",
+      "namePlaceholder": "Project name",
+      "nameRequired": "Project name is required",
+      "visualStyle": "Visual style",
+      "scriptStyle": "Script style",
+      "stylePlaceholder": "Select visual style",
+      "packPlaceholder": "None (can be set later)",
+      "packHint": "Bound preset injects per-stage guidance into each agent",
+      "status": "Status",
+      "cover": "Cover",
+      "coverEmpty": "No cover yet",
+      "coverUpload": "Upload image",
+      "coverUploading": "Uploading...",
+      "coverRemove": "Remove",
+      "coverHint": "JPG/PNG/WebP. Applied after saving; shown on the project list",
+      "language": "Content language",
+      "languagePlaceholder": "Follow global setting",
+      "languageHint": "Target language for AI output (script/assets/storyboard/prompts); applies to this project only",
+      "modelSection": "Generation models",
+      "modelPlaceholder": "Follow AI config default",
+      "modelHint": "Override the text/image/video model for this project per type; unselected types follow the default in Settings",
+      "resolution": "Video resolution",
+      "resolutionHint": "Resolution used for all video generation in this project, inherited by episodes; only affects newly generated videos",
+      "saving": "Saving...",
+      "saved": "Project settings saved"
+    },
+    "split": {
+      "button": "AI Split",
+      "title": "AI Episode Split",
+      "source": "Novel source",
+      "sourcePlaceholder": "Paste the full novel or an excerpt; it will be split into episodes by plot",
+      "sourceHint": "{n} characters",
+      "count": "Target episode count",
+      "countHint": "Split at natural plot breaks; every episode ends on a hook",
+      "sourceRequired": "Paste the novel source first",
+      "countRequired": "Enter the target episode count",
+      "generating": "Splitting...",
+      "generate": "Generate episodes",
+      "submitted": "Split task submitted; you can keep working",
+      "submittedShort": "Task running...",
+      "runningHint": "The split task runs in the background; you can close this window. The result fills back automatically, or check the task list.",
+      "emptyResult": "Task result is empty, please retry",
+      "failed": "Episode split task failed",
+      "doneToast": "Episode split finished, result filled in",
+      "previewHint": "{n} episodes · about {chars} characters in total; each episode's original text will be written on confirm",
+      "hookLabel": "Ending hook",
+      "charCount": "About {n} characters",
+      "back": "Edit again",
+      "apply": "Create {n} episodes",
+      "applying": "Creating...",
+      "applied": "Created {n} episodes with original text written in",
+      "lockCopy": "Each new episode's original content is its source excerpt; rewrite it into a screenplay in the episode workbench."
+    },
+    "taskCenter": {
+      "button": "Tasks",
+      "stAll": "All",
+      "st_processing": "Processing",
+      "st_completed": "Completed",
+      "st_failed": "Failed",
+      "st_cancelled": "Cancelled",
+      "typeSplit": "Episode Split",
+      "typeImage": "Image Generation",
+      "typeVideo": "Video Generation",
+      "typeText": "Agent",
+      "clear": "Clear finished",
+      "empty": "No tasks yet. Image/video generation or episode split tasks will appear here.",
+      "viewSplit": "View result",
+      "retry": "Retry",
+      "retried": "Retry started",
+      "deleteTitle": "Delete Task",
+      "deleteMessage": "Delete task #{id}? Only the task record is removed; generated results are kept.",
+      "cleared": "Cleared {n} task records"
     },
     "epDelete": {
       "message": "Delete “{title}”? It will be hidden from the list and its storyboards and generation records will no longer be accessible."
@@ -232,7 +324,26 @@
       "uploaded": "{kind} “{name}” image uploaded",
       "needEpisodeForImage": "Create at least one episode in “Episodes” before generating asset images",
       "needEpisodeForPrompt": "Create at least one episode in “Episodes” before generating the final prompt",
-      "locationRequired": "Please enter a location"
+      "locationRequired": "Please enter a location",
+      "addAsset": "New Asset",
+      "assetKind": "Asset type",
+      "createHint": "Assets live at project level; after creating, link them to episodes in the edit dialog.",
+      "created": "Asset created",
+      "deleteAsset": "Delete asset",
+      "deleteConfirm": "Click again to confirm",
+      "deleted": "Asset deleted",
+      "refImages": "Reference images",
+      "refImagesHint": "Submitted along with the prompt when generating",
+      "addRefImages": "Add reference",
+      "refImagesEmpty": "No reference images yet; they will be used automatically when generating.",
+      "removeRefImage": "Remove",
+      "refImageMax": "Up to 10 reference images",
+      "refImageSaved": "Reference images saved",
+      "episodeLinks": "Appears in episodes",
+      "episodeLinksHint": "Tick to reference across episodes, effective immediately",
+      "episodeN": "EP{n}",
+      "linked": "Linked to this episode",
+      "unlinked": "Removed from this episode"
     }
   },
   "settings": {
@@ -240,7 +351,8 @@
     "tabs": {
       "general": "General",
       "ai": "AI Services",
-      "styles": "Style Presets",
+      "styles": "Visual Style",
+      "packs": "Script Style",
       "storage": "Storage",
       "network": "Public Access",
       "about": "About & Updates",
@@ -305,7 +417,7 @@
       }
     },
     "styles": {
-      "title": "Style Presets",
+      "title": "Visual Style",
       "desc": "The visual style chosen at project creation. Its English prompt fragment is injected into character and scene image generation. Disabled styles are hidden from creation options.",
       "allTitle": "All Styles",
       "count": "{active} active · {total} total",
@@ -432,6 +544,7 @@
       "extractor": "Asset Extractor",
       "storyboardBreaker": "Storyboard Breaker",
       "promptGenerator": "Prompt Generator",
+      "episodeSplitter": "Novel Splitter",
       "langFallback": "Falls back to Chinese",
       "followContentLang": "Editing language: {lang} (switch in General → AI Content Language)"
     },
@@ -519,6 +632,54 @@
       "title": "Delete Style Preset",
       "message": "Delete style “{name}”? Projects already using it are unaffected, but a deleted built-in style may be restored on restart — consider disabling instead."
     },
+    "packs": {
+      "title": "Script Style",
+      "desc": "Style packs are organized per pipeline stage: once bound to a project, the episode split, script rewriting, asset extraction, storyboard and prompt agents each receive the guidance for their own role, keeping the whole pipeline consistent. Independent of visual style (image prompt prefix).",
+      "allTitle": "All Style Presets",
+      "count": "{active} enabled / {total} total",
+      "empty": "No style presets yet",
+      "episodeSplit": "Episode split",
+      "script": "Script rewrite",
+      "extractor": "Asset extraction",
+      "storyboard": "Storyboard",
+      "prompt": "Prompt generation"
+    },
+    "packDialog": {
+      "editTitle": "Edit Style Preset",
+      "addTitle": "Add Style Preset",
+      "sub": "The five guides are injected into the five agents' prompts respectively. Fill in at least one; generate with AI first, then adjust.",
+      "tag": "Script",
+      "generateLabel": "AI generation",
+      "generatePlaceholder": "Describe the style in one line, e.g. a medieval revenge story abroad, dubbed-drama tone",
+      "generateBtn": "Generate",
+      "generateHint": "Results fill the five guides below; edit before saving. Uses the text model from your current AI service config.",
+      "generateRequired": "Enter a style description first",
+      "generateDone": "Generated — review and adjust before saving",
+      "name": "Preset name",
+      "namePlaceholder": "e.g. Fast-paced, Suspense, Sweet romance",
+      "key": "Preset key",
+      "keyPlaceholder": "e.g. fast-paced, suspense (lowercase letters/digits/dashes)",
+      "keyHint": "Stored in the project as the preset identifier; cannot be changed after creation.",
+      "script": "Script rewrite guide (dialogue + pacing)",
+      "scriptPlaceholder": "e.g. Short punchy lines under 15 words; conflict within 10 seconds; 2+ emotional peaks per episode",
+      "episodeSplit": "Episode split guide (episode splitting)",
+      "episodeSplitPlaceholder": "e.g. Episode granularity and adaptation trade-offs — what plots make standalone episodes, what to compress or drop, preferred hook types",
+      "extractor": "Asset extraction guide",
+      "extractorPlaceholder": "e.g. Keep asset descriptions objective and concise; preserve clue-worthy details; no mood painting",
+      "storyboard": "Storyboard guide",
+      "storyboardPlaceholder": "e.g. Cut every 3-5 seconds; close-ups for peaks; no long empty shots",
+      "prompt": "Prompt generation guide",
+      "promptPlaceholder": "e.g. Video prompts favor motion and quick cuts; decisive camera moves",
+      "description": "Description",
+      "descPlaceholder": "One line on which genres this pack suits",
+      "sort": "Sort order",
+      "required": "Name and key are required",
+      "requiredGuide": "Fill in at least one of the five guides"
+    },
+    "packDelete": {
+      "title": "Delete Style Preset",
+      "message": "Delete preset “{name}”? Projects bound to it will simply stop injecting its guidance (the binding is kept), but a deleted built-in preset may be restored on restart — consider disabling instead."
+    },
     "skillDelete": {
       "title": "Delete Skill",
       "message": "Delete skill “{id}”? The corresponding Agent will fall back to its built-in default prompt."
@@ -532,8 +693,7 @@
       "tasks": "Tasks",
       "viewFilm": "View Film",
       "continue": "Continue",
-      "start": "Start Production",
-      "resolution": "Resolution"
+      "start": "Start Production"
     },
     "model": {
       "defaultWith": "Default · {model}",
@@ -610,6 +770,23 @@
       "delChar": "Delete character",
       "delScene": "Delete scene",
       "delProp": "Delete prop",
+      "fromLibrary": "From library",
+      "unlink": "Remove from episode",
+      "unlinkBtn": "Remove from episode",
+      "unlinkTitle": "Remove {type}",
+      "unlinkMessage": "Remove \"{name}\" from this episode? The asset itself is kept and remains available to other episodes.",
+      "unlinkConfirm": "Remove",
+      "unlinked": "{type} removed from this episode",
+      "linked": "Linked \"{name}\" to this episode",
+      "libraryPickTitle": "Add {type}",
+      "libraryPickEmpty": "No assets available to add; extract in another episode or create one in the library",
+      "libraryPickHint": "Click to link to this episode; assets are shared project-wide and edits apply to all episodes.",
+      "refImages": "Reference images",
+      "addRefImages": "Add reference",
+      "refImagesEmpty": "No reference images yet; they will be used automatically when generating.",
+      "removeRefImage": "Remove",
+      "refImageMax": "Up to 10 reference images",
+      "refImageSaved": "Reference images saved",
       "charImageTitle": "{name} character portrait",
       "sceneImageTitle": "{name} scene image",
       "propImageTitle": "{name} prop image",
@@ -822,7 +999,6 @@
       "genTimeout": "Video generation timed out",
       "allDone": "All shot videos generated",
       "moderationHint": "Looks like a real-person/sensitive content moderation rejection — switch video model in the top bar and retry",
-      "resolutionSwitched": "Episode video resolution switched to {label}",
       "noneToGenerate": "No shots to generate",
       "batchStarted": "Started {n} video generation tasks",
       "retryFailed": "Retry failed ({n})",
@@ -863,7 +1039,7 @@
       "noBoundRefs": "No bound assets (bind in the center \"References\" panel)"
     },
     "tasks": {
-      "title": "Generation Tasks",
+      "title": "Tasks",
       "meta": "Newest first · {n} tasks",
       "emptyTitle": "No generation tasks",
       "emptyDesc": "Tasks will appear here automatically after you trigger image/video generation in the assets, storyboard or video steps.",
@@ -881,7 +1057,7 @@
       "clear": "Clear",
       "clearConfirm": "Clear {n} finished task records? Running tasks are unaffected and generated media files are kept.",
       "cleared": "Cleared {n} task records",
-      "retried": "Generation task resubmitted",
+      "retried": "Retry started",
       "actionProbe": "Check progress",
       "probeCompleted": "Upstream finished — result saved",
       "probeFailed": "Upstream reported failure",
@@ -1012,10 +1188,24 @@
         "desc": "Switch sections on the left: AI services, general (UI & content language), style presets, agent prompts & skills, storage, about."
       }
     },
+    "detail": {
+      "welcome": {
+        "title": "👋 Project workspace",
+        "desc": "Manage a single project here: source text and outline, episodes and assets."
+      },
+      "tabs": {
+        "title": "Four sections",
+        "desc": "Source (episode splitting), Outline (per-episode hooks), Episodes (start production), Assets (character/scene/prop library)."
+      },
+      "actions": {
+        "title": "Tasks & settings",
+        "desc": "The task center aggregates all generation tasks; project settings cover cover, styles, content language and models."
+      }
+    },
     "episode": {
       "topbar": {
-        "title": "Top bar: models & status",
-        "desc": "Switch the text/image/video model for this session any time; resolution and duration tiers follow the model."
+        "title": "Top bar: tasks & settings",
+        "desc": "Refresh, task drawer and project settings live on the right; models and content language are set in \"Project Settings\"."
       },
       "script": {
         "title": "Step 1 · Script",

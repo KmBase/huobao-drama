@@ -3,12 +3,12 @@
  * 请求：  POST /v1/images/generations  （同步返回）
  * 模型：  agnes-image-2.5-flash
  * 参数：  model / prompt / size("1K"|"2K"|"3K"|"4K") / ratio / return_base64
- *         extra_body: { response_format: "url"|"b64_json", image: [参考图公网 URL 列表] }
+ *         extra_body: { response_format: "url"|"b64_json", image: [参考图 URL / Data URI 列表] }
  * 响应：  { data: [{ url }] } 或 { data: [{ b64_json }] }
  *
- * 注意：参考图只接受**公网可访问的 URL**（Agnes 官方要求，不支持 Base64 Data URI）。
- * 本地生成的参考图需经内网穿透 / 反代暴露为公网地址，见 generation.ts 的
- * referenceImageTransport 分流。
+ * 参考图接受公网 http(s) URL 或 Data URI Base64（2026-10 实测）。走 data-url 传输形态：
+ * generation.ts 把本地/远程参考图统一压成 Base64 Data URI，桌面版不依赖内网穿透即可用参考图，
+ * 也避免上游回源下载被访问密码 / 隧道状态卡住。
  *
  * 本项目的生图记录以 "宽x高"（默认 1920x1080）描述画幅，Agnes 只接受
  * "清晰度档位 + 画幅比例"，因此适配器内置换算：最大边定档位、宽高比就近取比例。
@@ -21,7 +21,7 @@ import type {
   ImageGenResponse,
   ImagePollResponse,
 } from './types'
-import { assertPublicHttpUrls, joinProviderUrl } from './url'
+import { joinProviderUrl } from './url'
 
 const MODEL_PREFIX = 'agnes-image-'
 const DEFAULT_MODEL = 'agnes-image-2.5-flash'
@@ -75,8 +75,8 @@ function parseUrlArray(raw?: string | null): string[] {
 
 export class AgnesImageAdapter implements ImageProviderAdapter {
   provider = 'agnes'
-  /** Agnes 只接受公网 URL，本地参考图必须先解析成公网地址 */
-  referenceImageTransport = 'public-url' as const
+  /** Agnes 图片端接受 Data URI Base64：参考图走 data-url 传输，无需公网出口 */
+  referenceImageTransport = 'data-url' as const
 
   buildGenerateRequest(config: AIConfig, record: ImageGenerationRecord): ProviderRequest {
     const model = record.model || config.model || DEFAULT_MODEL
@@ -87,12 +87,13 @@ export class AgnesImageAdapter implements ImageProviderAdapter {
     const prompt = (record.prompt || '').trim()
     if (!prompt) throw new Error('提示词不能为空')
 
-    // generation.ts 已按 referenceImageTransport 把参考图统一解析为公网 URL
+    // generation.ts 已按 data-url 传输形态把参考图统一压成 Base64 Data URI（或直通 http(s) URL）
     const referenceImages = parseUrlArray(record.referenceImages)
     if (referenceImages.length > MAX_REFERENCE_IMAGES) {
       throw new Error(`参考图超限：Agnes 最多 ${MAX_REFERENCE_IMAGES} 张，当前 ${referenceImages.length} 张`)
     }
-    assertPublicHttpUrls(referenceImages, 'Agnes 参考图片')
+    const invalid = referenceImages.find((u) => !/^data:image\//i.test(u) && !/^https?:\/\//i.test(u))
+    if (invalid) throw new Error('Agnes 参考图片必须是公网 http(s) URL 或 Data URI Base64')
 
     const extraBody: Record<string, any> = { response_format: 'url' }
     if (referenceImages.length) extraBody.image = referenceImages

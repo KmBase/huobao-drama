@@ -45,6 +45,15 @@ export const dramaAPI = {
   create: (data: any) => api.post('/dramas', data),
   update: (id: number, data: any) => api.put(`/dramas/${id}`, data),
   del: (id: number) => api.del(`/dramas/${id}`),
+  // AI 分集：run 提交异步任务（立即返回，结果进任务中心）；preview 同步切分（保留兼容）；apply 批量建集
+  splitRun: (id: number, data: { source_content: string; episode_count: number; text_config_id?: number }) =>
+    api.post<{ task_id: number }>(`/dramas/${id}/split-episodes/run`, data),
+  splitPreview: (id: number, data: { source_content: string; episode_count: number; text_config_id?: number }) =>
+    api.post(`/dramas/${id}/split-episodes/preview`, data),
+  splitApply: (id: number, data: { episodes: Array<{ title: string; content: string }>; resolution?: string }) =>
+    api.post(`/dramas/${id}/split-episodes/apply`, data),
+  // 从 episodes 表重建大纲 md（全局提示词）
+  syncOutline: (id: number) => api.post(`/dramas/${id}/outline/sync`),
 }
 
 export const episodeAPI = {
@@ -60,6 +69,13 @@ export const episodeAPI = {
   extractStatus: (id: number) => api.get(`/episodes/${id}/extract-status`),
   generateVideoPrompts: (id: number, model?: string, configId?: number, storyboardIds?: number[]) => api.post(`/episodes/${id}/generate-video-prompts`, { model: model || undefined, config_id: configId || undefined, storyboard_ids: storyboardIds?.length ? storyboardIds : undefined }),
   videoPromptsStatus: (id: number) => api.get(`/episodes/${id}/video-prompts-status`),
+  // 跨集素材复用：把项目已有资产挂接到某集 / 移出某集（不动资产本身）
+  linkAsset: (kind: 'character' | 'scene' | 'prop', episodeId: number, assetId: number) => {
+    const key = kind === 'character' ? 'character_id' : kind === 'scene' ? 'scene_id' : 'prop_id'
+    return api.post(`/episodes/${episodeId}/${kind}s`, { [key]: assetId })
+  },
+  unlinkAsset: (kind: 'character' | 'scene' | 'prop', episodeId: number, assetId: number) =>
+    api.del(`/episodes/${episodeId}/${kind}s/${assetId}`),
 }
 
 export const storyboardAPI = {
@@ -104,7 +120,7 @@ export const taskAPI = {
   batchDelete: (ids: number[]) => api.post<{ deleted: number; skipped: number }>('/tasks/batch-delete', { ids }),
   clear: (scope: 'completed' | 'failed' | 'cancelled' | 'finished' = 'finished') =>
     api.post<{ deleted: number }>('/tasks/clear', { scope }),
-  list: (params?: { type?: 'image' | 'video'; status?: string; drama_id?: number; storyboard_id?: number; keyword?: string; page?: number; page_size?: number }) => {
+  list: (params?: { type?: string; status?: string; drama_id?: number; storyboard_id?: number; keyword?: string; page?: number; page_size?: number }) => {
     const query = new URLSearchParams()
     if (params?.type) query.set('type', params.type)
     if (params?.status) query.set('status', params.status)
@@ -117,6 +133,8 @@ export const taskAPI = {
   },
   // 按集聚合生成任务（sys_task + video_merges）
   listByEpisode: (episodeId: number) => api.get<{ tasks: any[]; merges: any[] }>(`/episodes/${episodeId}/generation-tasks`),
+  // 项目维度聚合生成任务（sys_task + video_merges），任务抽屉共用
+  listByDrama: (dramaId: number) => api.get<{ tasks: any[]; merges: any[] }>(`/dramas/${dramaId}/generation-tasks`),
 }
 
 async function uploadReq<T = any>(path: string, file: File): Promise<T> {
@@ -233,6 +251,16 @@ export const stylePresetAPI = {
   create: (d: any) => api.post('/style-presets', d),
   update: (id: number, d: any) => api.put(`/style-presets/${id}`, d),
   del: (id: number) => api.del(`/style-presets/${id}`),
+}
+
+// 剧本风格包：按 agent 分段的工作流指导，项目绑定后各 agent 收到对应分段；支持大模型一键生成
+export const stylePackAPI = {
+  list: (all = false) => api.get(`/style-packs${all ? '?all=1' : ''}`),
+  create: (d: any) => api.post('/style-packs', d),
+  update: (id: number, d: any) => api.put(`/style-packs/${id}`, d),
+  del: (id: number) => api.del(`/style-packs/${id}`),
+  generate: (description: string, textConfigId?: number) =>
+    api.post('/style-packs/generate', { description, text_config_id: textConfigId }),
 }
 
 export const storageAPI = {

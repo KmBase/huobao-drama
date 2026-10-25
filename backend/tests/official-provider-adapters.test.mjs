@@ -254,6 +254,8 @@ test('Agnes adapters follow the documented 2.5 Flash API', () => {
   assert.match(image, /'4K'[\s\S]*'3K'[\s\S]*'2K'[\s\S]*'1K'/)
   assert.match(image, /extra_body: extraBody/)
   assert.match(image, /response_format: 'url'/)
+  // 参考图走 data-url 传输（Agnes 图片端接受 Data URI），桌面版无需公网出口
+  assert.match(image, /referenceImageTransport = 'data-url' as const/)
 
   // 视频：异步提交 /v1/videos + /agnesapi 轮询，mode 三态与 720P 固定档位
   assert.match(video, /'\/v1\/videos'/)

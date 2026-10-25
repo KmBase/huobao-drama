@@ -1,40 +1,47 @@
 <template>
   <div class="page" v-if="drama">
-    <!-- Header：单行紧凑 -->
-    <div class="page-head card">
-      <button class="back-btn" :title="t('common.back')" @click="navigateTo('/')">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
-        </svg>
-      </button>
-      <div class="head-info">
-        <h1 class="page-title">{{ drama.title }}</h1>
-        <span v-if="drama.style" class="tag tag-accent">{{ drama.style }}</span>
-        <div class="page-meta">
-          <span class="meta-item">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-            {{ t('detail.head.charCount', { n: drama.characters?.length || 0 }) }}
-          </span>
-          <span class="meta-item">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/></svg>
-            {{ t('detail.head.sceneCount', { n: drama.scenes?.length || 0 }) }}
-          </span>
-          <span class="meta-item">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="2.5"/><line x1="7" y1="8" x2="7" y2="16"/><line x1="10" y1="8" x2="10" y2="16"/><line x1="13" y1="8" x2="13" y2="16"/><line x1="16" y1="8" x2="16" y2="16"/></svg>
-            {{ t('detail.head.epCount', { n: drama.episodes?.length || 0 }) }}
-          </span>
-        </div>
-      </div>
-      <button class="btn btn-primary head-action" @click="openAddEpisode">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
-          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-        </svg>
-        {{ t('detail.head.addEpisode') }}
-      </button>
-    </div>
+    <PageTopbar back-to="/" :back-label="t('common.back')" :title="drama.title">
+      <template #identity>
+        <span v-if="drama.style" class="studio-episode-chip">{{ drama.style }}</span>
+      </template>
+      <template #meta>
+        <span class="studio-meta-inline">{{ t('detail.head.charCount', { n: drama.characters?.length || 0 }) }}</span>
+        <span class="studio-meta-inline">{{ t('detail.head.sceneCount', { n: drama.scenes?.length || 0 }) }}</span>
+        <span class="studio-meta-inline">{{ t('detail.head.epCount', { n: drama.episodes?.length || 0 }) }}</span>
+      </template>
 
-    <!-- 主 Tab：剧集列表 / 素材库 -->
+      <div class="studio-actions">
+        <button class="btn btn-icon tour-help-btn" :title="t('tour.helpTitle')" @click="startTour('detail', DETAIL_TOUR, t)">
+          <CircleHelp :size="14" :stroke-width="1.8" />
+        </button>
+        <button class="btn" @click="load">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+          {{ t('common.refresh') }}
+        </button>
+        <button class="btn" @click="openTaskCenter">
+          <ListTodo :size="12" />
+          {{ t('detail.taskCenter.button') }}
+          <span v-if="processingTaskCount > 0" class="task-drawer-badge">{{ processingTaskCount }}</span>
+        </button>
+        <button class="btn btn-primary" @click="openConfig">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          {{ t('detail.config.button') }}
+        </button>
+      </div>
+    </PageTopbar>
+
+    <div class="page-body">
+    <!-- 主 Tab：原著 / 大纲 / 剧集 / 素材 -->
     <nav class="page-tabs">
+      <button type="button" :class="['tab-btn', { on: activeTab === 'source' }]" @click="activeTab = 'source'">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        {{ t('detail.tabs.source') }}
+      </button>
+      <button type="button" :class="['tab-btn', { on: activeTab === 'outline' }]" @click="activeTab = 'outline'">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+        {{ t('detail.tabs.outline') }}
+        <span class="tab-count">{{ drama.episodes?.length || 0 }}</span>
+      </button>
       <button type="button" :class="['tab-btn', { on: activeTab === 'episodes' }]" @click="activeTab = 'episodes'">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="2.5"/><line x1="7" y1="8" x2="7" y2="16"/><line x1="10" y1="8" x2="10" y2="16"/><line x1="13" y1="8" x2="13" y2="16"/><line x1="16" y1="8" x2="16" y2="16"/></svg>
         {{ t('detail.tabs.episodes') }}
@@ -46,6 +53,44 @@
         <span v-if="assetTotal > 0" class="tab-count">{{ assetTotal }}</span>
       </button>
     </nav>
+
+    <!-- 原著：项目级源文本 + AI 分集入口 -->
+    <div v-if="activeTab === 'source'" class="card source-card">
+      <div class="source-toolbar">
+        <span class="config-sub">{{ t('detail.source.charCount', { n: sourceDraft.length }) }}</span>
+        <div class="source-actions">
+          <button class="btn head-action" :disabled="splitGenerating" @click="openSplitEpisodes">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.36 6.36-.7-.7M6.34 6.34l-.7-.7m12.72 0-.7.7M6.34 17.66l-.7.7"/><circle cx="12" cy="12" r="4"/></svg>
+            {{ t('detail.split.button') }}
+          </button>
+          <button class="btn btn-primary" :disabled="savingSource || sourceDraft === (drama.source_content || '')" @click="saveSource">
+            {{ savingSource ? t('detail.source.saving') : t('common.save') }}
+          </button>
+        </div>
+      </div>
+      <textarea v-model="sourceDraft" class="textarea source-textarea" :placeholder="t('detail.source.placeholder')"></textarea>
+      <p class="field-hint">{{ t('detail.source.hint') }}</p>
+    </div>
+
+    <!-- 大纲：各集标题/概要/钩子，保存后同步到全局大纲 md -->
+    <div v-if="activeTab === 'outline'" class="card outline-card">
+      <div class="source-toolbar">
+        <span class="config-sub">{{ t('detail.outline.hint') }}</span>
+        <button class="btn btn-primary" style="margin-left:auto" :disabled="savingOutline || !outlineDraft.length" @click="saveOutline">
+          {{ savingOutline ? t('detail.outline.saving') : t('detail.outline.saveSync') }}
+        </button>
+      </div>
+      <p v-if="!outlineDraft.length" class="config-empty">{{ t('detail.outline.empty') }}</p>
+      <div v-for="(row, i) in outlineDraft" :key="row.id" class="outline-row">
+        <div class="outline-head">
+          <span class="outline-ep">EP{{ String(row.episode_number || row.episodeNumber).padStart(2, '0') }}</span>
+          <input v-model="row.title" class="input outline-title-input" :placeholder="t('detail.outline.titlePlaceholder')" />
+        </div>
+        <textarea v-model="row.summary" class="textarea" rows="2" :placeholder="t('detail.outline.summaryPlaceholder')"></textarea>
+        <input v-model="row.hook" class="input" :placeholder="t('detail.outline.hookPlaceholder')" />
+        <span v-if="i < outlineDraft.length - 1" class="outline-chain">↓ {{ t('detail.outline.chain') }}</span>
+      </div>
+    </div>
 
     <div v-if="activeTab === 'episodes'" class="ep-grid">
       <div
@@ -102,26 +147,9 @@
           </div>
         </div>
 
-        <!-- 下区：常驻操作条 — 分辨率 / 删除 / 进入制作 -->
+        <!-- 下区：常驻操作条 — 删除 / 进入制作 -->
         <div class="ep-card-foot" @click.stop>
-          <AppMenu
-            :open="epResMenuId === ep.id"
-            placement="top-start"
-            :min-width="110"
-            @update:open="(v) => { epResMenuId = v ? ep.id : null }"
-          >
-            <template #trigger>
-              <button type="button" :class="['tag', 'ep-res-btn']" :title="t('detail.ep.resTitle')">
-                {{ epResolution(ep) }}
-              </button>
-            </template>
-            <AppMenuItem
-              v-for="r in resolutionOptions"
-              :key="r.value"
-              :selected="epResolution(ep) === r.value"
-              @click="setEpisodeResolution(ep, r.value)"
-            >{{ r.label }}</AppMenuItem>
-          </AppMenu>
+          <span class="tag ep-res-btn" :title="t('detail.config.resolution')">{{ drama.resolution || '720p' }}</span>
           <span class="ep-foot-spacer"></span>
           <button
             class="btn btn-icon btn-sm ep-delete"
@@ -173,15 +201,21 @@
 
     <!-- 素材库 -->
     <div v-else-if="activeTab === 'assets'" class="assets-wrap">
-      <div class="seg asset-filter">
-        <button
-          v-for="t in assetTabs"
-          :key="t.value"
-          type="button"
-          class="seg-item"
-          :class="{ on: assetTab === t.value }"
-          @click="assetTab = t.value"
-        >{{ t.label }}</button>
+      <div class="asset-toolbar">
+        <div class="seg asset-filter">
+          <button
+            v-for="t in assetTabs"
+            :key="t.value"
+            type="button"
+            class="seg-item"
+            :class="{ on: assetTab === t.value }"
+            @click="assetTab = t.value"
+          >{{ t.label }}</button>
+        </div>
+        <button class="btn btn-primary ml-auto" type="button" @click="openCreateMaterial">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          {{ t('detail.mat.addAsset') }}
+        </button>
       </div>
 
       <!-- 全部素材为空 -->
@@ -329,8 +363,9 @@
           <p class="empty-desc">{{ t('detail.assets.emptyKindDesc', { kind: tabLabel(assetTab) }) }}</p>
         </div>
       </div>
+    </div>
 
-      <!-- 素材详情 / 编辑对话框（与工作台资产卡片同款布局） -->
+    <!-- 素材详情 / 编辑对话框（与工作台资产卡片同款布局） -->
       <div v-if="editDialog && editTarget" class="overlay mat-detail-overlay" @click.self="closeEdit">
         <section class="dialog mat-detail-dialog" :aria-label="t('detail.mat.dialogAria')">
           <header class="dialog-head mat-detail-head">
@@ -476,10 +511,59 @@
                 :placeholder="t('detail.mat.promptPlaceholder')"
               ></textarea>
             </section>
+
+            <!-- 参考图：生图时作为参考提交（即时保存） -->
+            <section class="mat-detail-prompt-panel">
+              <div class="mat-detail-section-title">
+                <span>{{ t('detail.mat.refImages') }}</span>
+                <span class="dim">{{ t('detail.mat.refImagesHint') }}</span>
+                <button class="btn btn-sm mat-detail-prompt-gen" :disabled="refUploading" @click="addRefImages">
+                  <span v-if="refUploading" class="ring-spinner sm"></span>
+                  <svg v-else width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                  {{ t('detail.mat.addRefImages') }}
+                </button>
+              </div>
+              <div v-if="editRefImages.length" class="refimg-grid">
+                <div v-for="(img, i) in editRefImages" :key="img + i" class="refimg-item">
+                  <img :src="thumbOf(refImgSrc(img))" loading="lazy" @error="thumbFallback($event, refImgSrc(img))" />
+                  <button type="button" class="refimg-del" :title="t('detail.mat.removeRefImage')" @click="removeRefImage(i)">
+                    <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </button>
+                </div>
+              </div>
+              <p v-else class="dim refimg-empty">{{ t('detail.mat.refImagesEmpty') }}</p>
+            </section>
+
+            <!-- 跨集引用：勾选素材出现在哪些集（即时生效） -->
+            <section class="mat-detail-prompt-panel">
+              <div class="mat-detail-section-title">
+                <span>{{ t('detail.mat.episodeLinks') }}</span>
+                <span class="dim">{{ t('detail.mat.episodeLinksHint') }}</span>
+              </div>
+              <div v-if="drama?.episodes?.length" class="ep-link-chips">
+                <button
+                  v-for="ep in drama.episodes"
+                  :key="ep.id"
+                  type="button"
+                  class="ep-link-chip"
+                  :class="{ on: (editTarget?.episode_ids || []).includes(ep.id) }"
+                  :disabled="epLinkBusy === ep.id"
+                  @click="toggleEpisodeLink(ep)"
+                >
+                  <span v-if="epLinkBusy === ep.id" class="ring-spinner sm"></span>
+                  {{ ep.episode_number ? t('detail.mat.episodeN', { n: ep.episode_number }) : ep.title }}
+                </button>
+              </div>
+              <p v-else class="dim refimg-empty">{{ t('detail.mat.needEpisodeFirst') }}</p>
+            </section>
           </div>
 
           <footer class="dialog-foot mat-detail-foot">
             <div class="mat-detail-secondary-actions">
+              <button class="btn danger-text" :disabled="editDeleting" @click="deleteMaterial(editTarget)">
+                <span v-if="editDeleting" class="ring-spinner sm"></span>
+                {{ editDeleteArmed ? t('detail.mat.deleteConfirm') : t('detail.mat.deleteAsset') }}
+              </button>
               <button class="btn" @click="closeEdit">{{ t('common.close') }}</button>
             </div>
             <div class="mat-detail-primary-actions">
@@ -507,6 +591,75 @@
         </section>
       </div>
 
+      <!-- 新增素材 -->
+      <div v-if="createDialog.open" class="overlay" @click.self="createDialog.open = false">
+        <div class="dialog ep-dialog">
+          <div class="dialog-head">
+            <div class="dialog-title">{{ t('detail.mat.addAsset') }}</div>
+            <button class="btn btn-icon btn-sm btn-ghost ml-auto dialog-close" @click="createDialog.open = false">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+          <div class="dialog-body">
+            <label class="field">
+              <span class="field-label">{{ t('detail.mat.assetKind') }}</span>
+              <BaseSelect v-model="createDialog.type" :options="assetTabs.filter(x => x.value !== 'all').map(x => ({ label: x.label, value: x.value }))" />
+            </label>
+            <template v-if="createDialog.type !== 'scene'">
+              <label class="field">
+                <span class="field-label">{{ t('episode.create.name') }}</span>
+                <input v-model="createDraft.name" class="input" :placeholder="createDialog.type === 'character' ? t('episode.create.namePlaceholderChar') : t('episode.create.namePlaceholderProp')" />
+              </label>
+              <label v-if="createDialog.type === 'character'" class="field">
+                <span class="field-label">{{ t('episode.create.roleField') }}</span>
+                <input v-model="createDraft.role" class="input" :placeholder="t('episode.create.rolePlaceholder')" />
+              </label>
+              <label v-if="createDialog.type === 'character'" class="field">
+                <span class="field-label">{{ t('episode.asset.appearanceField') }}</span>
+                <textarea v-model="createDraft.appearance" class="textarea" rows="3" :placeholder="t('episode.asset.appearanceFieldPlaceholder')" />
+              </label>
+              <label v-if="createDialog.type === 'character'" class="field">
+                <span class="field-label">{{ t('episode.asset.stylingField') }}</span>
+                <textarea v-model="createDraft.styling" class="textarea" rows="3" :placeholder="t('episode.asset.stylingFieldPlaceholder')" />
+              </label>
+              <label v-if="createDialog.type === 'prop'" class="field">
+                <span class="field-label">{{ t('episode.create.typeField') }}</span>
+                <input v-model="createDraft.type" class="input" :placeholder="t('detail.mat.propTypePlaceholder')" />
+              </label>
+              <label v-if="createDialog.type === 'prop'" class="field">
+                <span class="field-label">{{ t('episode.asset.appearanceOfObject') }}</span>
+                <textarea v-model="createDraft.description" class="textarea" rows="3" :placeholder="t('episode.asset.appearancePlaceholder')" />
+              </label>
+            </template>
+            <template v-else>
+              <label class="field">
+                <span class="field-label">{{ t('episode.create.location') }}</span>
+                <input v-model="createDraft.location" class="input" :placeholder="t('detail.mat.locationPlaceholder')" />
+              </label>
+              <label class="field">
+                <span class="field-label">{{ t('episode.create.time') }}</span>
+                <input v-model="createDraft.time" class="input" :placeholder="t('detail.mat.timePlaceholder')" />
+              </label>
+              <label class="field">
+                <span class="field-label">{{ t('episode.asset.sceneDescField') }}</span>
+                <textarea v-model="createDraft.prompt" class="textarea" rows="3" :placeholder="t('episode.asset.sceneDescPlaceholder')" />
+              </label>
+              <label class="field">
+                <span class="field-label">{{ t('episode.asset.sceneLightField') }}</span>
+                <textarea v-model="createDraft.lighting" class="textarea" rows="3" :placeholder="t('episode.asset.sceneLightPlaceholder')" />
+              </label>
+            </template>
+            <p class="field-hint">{{ t('detail.mat.createHint') }}</p>
+          </div>
+          <div class="dialog-foot">
+            <button class="btn" @click="createDialog.open = false">{{ t('common.cancel') }}</button>
+            <button class="btn btn-primary" :disabled="createDialog.saving" @click="saveCreateMaterial">
+              {{ createDialog.saving ? t('detail.mat.saving') : t('common.add') }}
+            </button>
+          </div>
+        </div>
+      </div>
+
       <!-- 图片查看器 -->
       <div v-if="assetViewer.open" class="overlay viewer-overlay" @click.self="closeAssetViewer">
         <div class="dialog viewer-dialog">
@@ -521,6 +674,8 @@
       </div>
     </div>
 
+    <!-- 项目配置：名称 / 视觉风格 / 剧本风格 / 状态 -->
+    <ProjectConfigDialog v-model:open="configDialog" mode="edit" :drama="drama" :drama-id="dramaId" @saved="load" />
     <div v-if="addDialog" class="overlay" @click.self="addDialog = false">
       <div class="dialog ep-dialog">
         <div class="dialog-head">
@@ -535,14 +690,9 @@
             <input v-model="newEpisodeTitle" class="input" :placeholder="t('detail.epCreate.titlePlaceholder')" />
             <span class="field-hint">{{ t('detail.epCreate.titleHint', { example: t('detail.epCreate.example', { n: 3 }) }) }}</span>
           </label>
-          <label class="field">
-            <span class="field-label">{{ t('detail.epCreate.resolution') }}</span>
-            <BaseSelect v-model="newEpisodeResolution" :options="resolutionOptions" :placeholder="t('detail.epCreate.resolutionPlaceholder')" />
-            <span class="field-hint">{{ t('detail.epCreate.resolutionHint') }}</span>
-          </label>
         </div>
         <div class="dialog-foot">
-          <span class="dialog-foot-copy">{{ t('detail.epCreate.lockCopy') }}</span>
+          <span class="dialog-foot-copy">{{ t('detail.epCreate.inheritCopy') }}</span>
           <button class="btn" @click="addDialog = false">{{ t('common.cancel') }}</button>
           <button class="btn btn-primary" :disabled="creatingEpisode" @click="addEpisode">
             {{ creatingEpisode ? t('detail.epCreate.creating') : t('detail.epCreate.create') }}
@@ -550,6 +700,77 @@
         </div>
       </div>
     </div>
+    <!-- AI 分集弹窗：粘贴原文 → 提交异步任务 → 结果回填 → 确认建集（改编后的剧本正文） -->
+    <div v-if="splitDialog" class="overlay" @click.self="splitDialog = false">
+      <div class="dialog ep-dialog">
+        <div class="dialog-head">
+          <div class="dialog-title">{{ t('detail.split.title') }}</div>
+          <button class="btn btn-icon btn-sm btn-ghost ml-auto dialog-close" @click="splitDialog = false">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <div class="dialog-body">
+          <template v-if="!splitPreview.length">
+            <label class="field">
+              <span class="field-label">{{ t('detail.split.source') }}</span>
+              <textarea v-model="splitSource" class="textarea" rows="10" :placeholder="t('detail.split.sourcePlaceholder')"></textarea>
+              <span class="field-hint">{{ t('detail.split.sourceHint', { n: splitSource.length }) }}</span>
+            </label>
+            <label class="field">
+              <span class="field-label">{{ t('detail.split.count') }}</span>
+              <input v-model.number="splitCount" class="input" type="number" min="1" max="100" />
+              <span class="field-hint">{{ t('detail.split.countHint') }}</span>
+            </label>
+            <p v-if="splitGenerating || splitTaskId" class="field-hint split-running-hint">
+              <svg class="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+              {{ t('detail.split.runningHint') }}
+            </p>
+          </template>
+          <template v-else>
+            <p class="field-hint" style="margin-top:0">{{ t('detail.split.previewHint', { n: splitPreview.length, chars: splitPreview.reduce((s, e) => s + (e.content?.length || 0), 0) }) }}</p>
+            <div class="split-preview-list">
+              <div v-for="(ep, i) in splitPreview" :key="i" class="split-preview-row">
+                <div class="split-preview-main">
+                  <div class="split-preview-title">{{ i + 1 }}. {{ ep.title }}</div>
+                  <div v-if="ep.summary" class="split-preview-summary">{{ ep.summary }}</div>
+                  <div v-if="ep.hook" class="split-preview-hook">{{ t('detail.split.hookLabel') }}：{{ ep.hook }}</div>
+                  <div class="config-sub">{{ t('detail.split.charCount', { n: ep.content?.length || 0 }) }}</div>
+                </div>
+                <button class="btn btn-danger btn-icon btn-sm" @click="splitPreview.splice(i, 1)">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+              </div>
+            </div>
+          </template>
+        </div>
+        <div class="dialog-foot">
+          <span class="dialog-foot-copy">{{ t('detail.split.lockCopy') }}</span>
+          <template v-if="!splitPreview.length">
+            <button class="btn" @click="splitDialog = false">{{ t('common.close') }}</button>
+            <button class="btn btn-primary" :disabled="splitGenerating || !!splitTaskId" @click="generateSplit">
+              <svg v-if="splitGenerating" class="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+              {{ splitGenerating || splitTaskId ? t('detail.split.submittedShort') : t('detail.split.generate') }}
+            </button>
+          </template>
+          <template v-else>
+            <button class="btn" @click="splitPreview = []">{{ t('detail.split.back') }}</button>
+            <button class="btn btn-primary" :disabled="splitApplying" @click="applySplit">
+              {{ splitApplying ? t('detail.split.applying') : t('detail.split.apply', { n: splitPreview.length }) }}
+            </button>
+          </template>
+        </div>
+      </div>
+    </div>
+
+    <!-- 任务抽屉（GenTaskDrawer 共享组件，与剧集页同款）：项目维度聚合 sys_task + video_merges -->
+    <GenTaskDrawer
+      :open="taskCenterOpen"
+      :fetch="fetchProjectTasks"
+      :context="{ chars: drama.characters || [], scenes: drama.scenes || [], props: drama.props || [] }"
+      :extra-action="splitRowAction"
+      @close="taskCenterOpen = false"
+      @loaded="onTasksLoaded"
+    />
     <ConfirmDialog
       :open="!!episodeToDelete"
       :title="t('detail.ep.deleteTitle')"
@@ -562,11 +783,14 @@
 </template>
 
 <script setup>
+definePageMeta({ layout: 'studio' })
 import { toast } from 'vue-sonner'
 import { toastError } from '~/composables/useToast'
 import { useI18n } from 'vue-i18n'
-import { dramaAPI, episodeAPI, characterAPI, sceneAPI, propAPI, uploadAPI } from '~/composables/useApi'
+import { dramaAPI, episodeAPI, characterAPI, sceneAPI, propAPI, uploadAPI, taskAPI } from '~/composables/useApi'
 import BaseSelect from '~/components/BaseSelect.vue'
+import { ListTodo, CircleHelp } from 'lucide-vue-next'
+import { startTour, autoTour } from '~/composables/useTour'
 
 const { t, locale } = useI18n()
 
@@ -579,29 +803,7 @@ const newEpisodeTitle = ref('')
 const episodeToDelete = ref(null)
 const deletingEpisode = ref(false)
 
-// 视频分辨率：创建集时固定（持久化到 episodes.resolution），集卡片上可修改
-const resolutionOptions = computed(() => ([
-  { label: t('detail.ep.res720'), value: '720p' },
-  { label: t('detail.ep.res480'), value: '480p' },
-]))
-const newEpisodeResolution = ref('720p')
-const epResMenuId = ref(null)
-
-function epResolution(ep) { return ep.resolution === '480p' ? '480p' : '720p' }
-
-async function setEpisodeResolution(ep, resolution) {
-  epResMenuId.value = null
-  if (epResolution(ep) === resolution) return
-  const prev = ep.resolution
-  ep.resolution = resolution
-  try {
-    await episodeAPI.update(ep.id, { resolution })
-    toast.success(t('detail.ep.resSwitched', { res: resolution }))
-  } catch (e) {
-    ep.resolution = prev
-    toastError(e)
-  }
-}
+// 视频分辨率是项目级配置（dramas.resolution），集卡片上只读展示，修改走项目配置弹窗
 
 // 集状态由用户手动标记（持久化到 episodes.status），不再按剧本内容自动推算
 const epStatusOptions = computed(() => ([
@@ -642,25 +844,218 @@ async function setEpisodeStatus(ep, status) {
 async function load() {
   try {
     drama.value = await dramaAPI.get(dramaId)
+    // 原著/大纲 tab 的可编辑草稿跟随数据刷新（未保存的本地编辑会被覆盖）
+    sourceDraft.value = drama.value.source_content || ''
+    outlineDraft.value = (drama.value.episodes || []).map(ep => ({
+      id: ep.id,
+      episode_number: ep.episode_number || ep.episodeNumber,
+      title: ep.title || '',
+      summary: ep.summary || '',
+      hook: ep.hook || '',
+    }))
+   } catch (e) {
+    toastError(e)
+  }
+}
+
+// ===== 原著 tab =====
+const sourceDraft = ref('')
+const savingSource = ref(false)
+
+async function saveSource() {
+  try {
+    savingSource.value = true
+    await dramaAPI.update(dramaId, { source_content: sourceDraft.value })
+    drama.value.source_content = sourceDraft.value
+    toast.success(t('detail.source.saved'))
   } catch (e) {
     toastError(e)
+  } finally {
+    savingSource.value = false
+  }
+}
+
+// ===== 大纲 tab =====
+const outlineDraft = ref([])
+const savingOutline = ref(false)
+
+async function saveOutline() {
+  try {
+    savingOutline.value = true
+    // 逐集保存标题/概要/钩子，然后重建全局大纲 md（注入全部 agent）
+    for (const row of outlineDraft.value) {
+      await episodeAPI.update(row.id, { title: row.title, summary: row.summary, hook: row.hook })
+    }
+    await dramaAPI.syncOutline(dramaId)
+    toast.success(t('detail.outline.saved'))
+    load()
+  } catch (e) {
+    toastError(e)
+  } finally {
+    savingOutline.value = false
   }
 }
 
 function openAddEpisode() {
   newEpisodeTitle.value = ''
-  newEpisodeResolution.value = '720p'
   addDialog.value = true
 }
+
+// ===== 项目配置（弹窗组件化：ProjectConfigDialog，模型/语言/封面等全部在弹窗内维护） =====
+const configDialog = ref(false)
+
+function openConfig() {
+  configDialog.value = true
+}
+
+// ===== AI 分集（异步任务：提交后不阻塞页面，结果进任务中心） =====
+const splitDialog = ref(false)
+const splitSource = ref('')
+const splitCount = ref(10)
+const splitGenerating = ref(false)
+const splitPreview = ref([])
+const splitApplying = ref(false)
+const splitTaskId = ref(null)
+let splitPollTimer = null
+
+function stopSplitPoll() {
+  if (splitPollTimer) { clearInterval(splitPollTimer); splitPollTimer = null }
+}
+
+function openSplitEpisodes() {
+  // 源文本默认带出原著 tab 已保存的内容
+  stopSplitPoll()
+  splitTaskId.value = null
+  splitGenerating.value = false
+  splitSource.value = sourceDraft.value || ''
+  splitCount.value = 10
+  splitPreview.value = []
+  splitDialog.value = true
+}
+
+async function pollSplitTask() {
+  if (!splitTaskId.value) { stopSplitPoll(); return }
+  let task = null
+  try { task = await taskAPI.get(splitTaskId.value) } catch { return } // 瞬时错误下一轮再查
+  if (!task || task.status === 'processing') return
+  stopSplitPoll()
+  splitGenerating.value = false
+  splitTaskId.value = null
+  if (task.status === 'completed') {
+    let episodes = []
+    try { episodes = JSON.parse(task.result || '{}').episodes || [] } catch { episodes = [] }
+    if (!episodes.length) {
+      toast.warning(t('detail.split.emptyResult'))
+      return
+    }
+    splitPreview.value = episodes
+    if (!splitDialog.value) toast.success(t('detail.split.doneToast'))
+  } else {
+    toastError(new Error(task.error_msg || t('detail.split.failed')))
+  }
+}
+
+async function generateSplit() {
+  if (!splitSource.value.trim()) {
+    toast.warning(t('detail.split.sourceRequired'))
+    return
+  }
+  if (!splitCount.value || splitCount.value < 1) {
+    toast.warning(t('detail.split.countRequired'))
+    return
+  }
+  try {
+    splitGenerating.value = true
+    const res = await dramaAPI.splitRun(dramaId, {
+      source_content: splitSource.value.trim(),
+      episode_count: splitCount.value,
+    })
+    splitTaskId.value = res.task_id
+    toast.success(t('detail.split.submitted'))
+    refreshTaskBadge()
+    pollSplitTask()
+    splitPollTimer = setInterval(pollSplitTask, 3000)
+  } catch (e) {
+    splitGenerating.value = false
+    toastError(e)
+  }
+}
+
+// 从任务中心查看已完成的分集结果，进入确认建集
+function viewSplitResult(task) {
+  let episodes = []
+  try { episodes = JSON.parse(task.result || '{}').episodes || [] } catch { episodes = [] }
+  if (!episodes.length) {
+    toast.warning(t('detail.split.emptyResult'))
+    return
+  }
+  stopSplitPoll()
+  splitTaskId.value = null
+  splitGenerating.value = false
+  splitPreview.value = episodes
+  taskCenterOpen.value = false
+  splitDialog.value = true
+}
+
+async function applySplit() {
+  try {
+    splitApplying.value = true
+    // 生成配置与分辨率都是项目级（dramas.model_* / dramas.resolution），分集直接继承
+    await dramaAPI.splitApply(dramaId, {
+      episodes: splitPreview.value.map(ep => ({ title: ep.title, content: ep.content, summary: ep.summary, hook: ep.hook })),
+    })
+    toast.success(t('detail.split.applied', { n: splitPreview.length }))
+    splitDialog.value = false
+    load()
+  } catch (e) {
+    toastError(e)
+  } finally {
+    splitApplying.value = false
+  }
+}
+
+// ===== 任务抽屉（GenTaskDrawer 共享组件，与剧集页同款）：项目维度聚合 sys_task + video_merges =====
+const taskCenterOpen = ref(false)
+const processingTaskCount = ref(0)
+
+function openTaskCenter() {
+  taskCenterOpen.value = true
+}
+
+// 项目维度任务拉取（含各集成片拼接记录），与剧集页抽屉同一套行结构与操作
+function fetchProjectTasks() {
+  return taskAPI.listByDrama(dramaId)
+}
+
+// 抽屉加载数据后同步顶栏"进行中"角标
+function onTasksLoaded({ tasks }) {
+  processingTaskCount.value = (tasks || []).filter(t => t.status === 'processing').length
+}
+
+// 抽屉关闭时也刷新一次角标（提交 AI 分集等任务后计数及时可见）
+async function refreshTaskBadge() {
+  try {
+    onTasksLoaded((await fetchProjectTasks()) || {})
+  } catch { /* 角标容错 */ }
+}
+
+// 已完成的 AI 分集任务提供"查看结果"入口，进入确认建集
+function splitRowAction(row) {
+  if (row.kind === 'episode_split' && row.status === 'completed') {
+    return { label: t('detail.taskCenter.viewSplit'), run: viewSplitResult }
+  }
+  return null
+}
+
+onBeforeUnmount(() => { stopSplitPoll() })
 
 async function addEpisode() {
   try {
     creatingEpisode.value = true
-    // 图片/视频生成配置由后端自动锁定为当前启用的最高优先级配置；分辨率随集固定
+    // 生成配置与分辨率都是项目级，建集只传标题
     await episodeAPI.create({
       drama_id: dramaId,
       title: newEpisodeTitle.value || undefined,
-      resolution: newEpisodeResolution.value,
     })
     toast.success(t('detail.epCreate.added'))
     addDialog.value = false
@@ -689,7 +1084,7 @@ async function confirmDelEpisode() {
 }
 
 /* ===== 素材库 Tab ===== */
-const activeTab = ref('episodes')
+const activeTab = ref('source')
 const assetTab = ref('all')
 const assetViewer = ref({ open: false, src: '', title: '' })
 const pendingMaterials = ref(new Set())
@@ -849,6 +1244,8 @@ const editDraft = reactive({})
 
 function openEdit(m) {
   editTarget.value = m
+  editDeleteArmed.value = false
+  editRefImages.value = parseRefImages(m.reference_images ?? m.referenceImages)
   // 按类型初始化 draft
   Object.keys(editDraft).forEach(k => delete editDraft[k])
   if (m.kindKey === 'character') {
@@ -914,57 +1311,187 @@ async function saveEdit() {
   }
 }
 
+/* ===== 素材参考图（生图时随提示词一并提交，即时保存） ===== */
+function parseRefImages(raw) {
+  if (Array.isArray(raw)) return raw.map(String).filter(Boolean)
+  if (typeof raw === 'string' && raw) {
+    try {
+      const p = JSON.parse(raw)
+      return Array.isArray(p) ? p.map(String).filter(Boolean) : []
+    } catch { return [] }
+  }
+  return []
+}
+function refImgSrc(raw) {
+  return /^https?:\/\//i.test(raw) || raw.startsWith('/') ? raw : `/${raw}`
+}
+const editRefImages = ref([])
+const refUploading = ref(false)
+
+async function persistRefImages() {
+  const target = editTarget.value
+  if (!target) return
+  const payload = { reference_images: editRefImages.value }
+  if (target.kindKey === 'character') await characterAPI.update(target.id, payload)
+  else if (target.kindKey === 'scene') await sceneAPI.update(target.id, payload)
+  else await propAPI.update(target.id, payload)
+}
+
+function addRefImages() {
+  if (refUploading.value) return
+  const input = document.createElement('input')
+  input.type = 'file'
+  input.multiple = true
+  input.accept = 'image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp'
+  input.onchange = async () => {
+    const files = Array.from(input.files || [])
+    if (!files.length) return
+    if (editRefImages.value.length + files.length > 10) {
+      toast.error(t('detail.mat.refImageMax'))
+      return
+    }
+    refUploading.value = true
+    try {
+      for (const file of files) {
+        const res = await uploadAPI.image(file)
+        editRefImages.value.push(res.path)
+      }
+      await persistRefImages()
+      toast.success(t('detail.mat.refImageSaved'))
+    } catch (e) {
+      toastError(e)
+    } finally {
+      refUploading.value = false
+    }
+  }
+  input.click()
+}
+
+async function removeRefImage(i) {
+  editRefImages.value.splice(i, 1)
+  try {
+    await persistRefImages()
+  } catch (e) {
+    toastError(e)
+  }
+}
+
+/* ===== 跨集引用：勾选素材出现在哪些集（即时生效） ===== */
+const epLinkBusy = ref(null)
+
+async function toggleEpisodeLink(ep) {
+  const target = editTarget.value
+  if (!target || epLinkBusy.value) return
+  const linked = (target.episode_ids || []).includes(ep.id)
+  epLinkBusy.value = ep.id
+  try {
+    if (linked) await episodeAPI.unlinkAsset(target.kindKey, ep.id, target.id)
+    else await episodeAPI.linkAsset(target.kindKey, ep.id, target.id)
+    const ids = linked
+      ? (target.episode_ids || []).filter(x => x !== ep.id)
+      : [...(target.episode_ids || []), ep.id]
+    editTarget.value = { ...target, episode_ids: ids }
+    toast.success(linked ? t('detail.mat.unlinked') : t('detail.mat.linked'))
+    load() // 静默刷新项目数据（弹窗保持打开）
+  } catch (e) {
+    toastError(e)
+  } finally {
+    epLinkBusy.value = null
+  }
+}
+
+/* ===== 删除素材（二次确认） ===== */
+const editDeleteArmed = ref(false)
+const editDeleting = ref(false)
+
+async function deleteMaterial(m) {
+  if (!m) return
+  if (!editDeleteArmed.value) {
+    editDeleteArmed.value = true
+    setTimeout(() => { editDeleteArmed.value = false }, 4000)
+    return
+  }
+  editDeleting.value = true
+  try {
+    if (m.kindKey === 'character') await characterAPI.del(m.id)
+    else if (m.kindKey === 'scene') await sceneAPI.del(m.id)
+    else await propAPI.del(m.id)
+    toast.success(t('detail.mat.deleted'))
+    closeEdit()
+    load()
+  } catch (e) {
+    toastError(e)
+  } finally {
+    editDeleting.value = false
+  }
+}
+
+/* ===== 新增素材 ===== */
+const createDialog = ref({ open: false, type: 'character', saving: false })
+const createDraft = reactive({ name: '', role: '', appearance: '', styling: '', location: '', time: '', prompt: '', lighting: '', type: '', description: '' })
+
+function openCreateMaterial() {
+  Object.assign(createDraft, { name: '', role: '', appearance: '', styling: '', location: '', time: '', prompt: '', lighting: '', type: '', description: '' })
+  createDialog.value = { open: true, type: assetTab.value !== 'all' ? assetTab.value : 'character', saving: false }
+}
+
+async function saveCreateMaterial() {
+  const d = createDraft
+  const type = createDialog.value.type
+  if (createDialog.value.saving) return
+  if (type === 'scene' ? !String(d.location ?? '').trim() : !String(d.name ?? '').trim()) {
+    toast.error(type === 'scene' ? t('detail.mat.locationRequired') : t('episode.create.nameRequired'))
+    return
+  }
+  createDialog.value.saving = true
+  try {
+    // 不传 episode_id：素材建在项目层，随后可在编辑弹窗里勾选挂接到各集
+    const base = { drama_id: dramaId }
+    if (type === 'character') await characterAPI.create({ ...base, name: d.name, role: d.role, appearance: d.appearance, styling: d.styling })
+    else if (type === 'scene') await sceneAPI.create({ ...base, location: d.location, time: d.time, prompt: d.prompt, lighting: d.lighting })
+    else await propAPI.create({ ...base, name: d.name, type: d.type, description: d.description })
+    toast.success(t('detail.mat.created'))
+    createDialog.value.open = false
+    assetTab.value = type
+    load()
+  } catch (e) {
+    toastError(e)
+  } finally {
+    createDialog.value.saving = false
+  }
+}
+
 onMounted(load)
+
+// ===== 应用内引导（项目页）：3 步 — 欢迎/tab 分区/任务中心 =====
+const DETAIL_TOUR = [
+  { element: '.studio-topbar-main', titleKey: 'tour.detail.welcome.title', descKey: 'tour.detail.welcome.desc' },
+  { element: '.page-tabs', titleKey: 'tour.detail.tabs.title', descKey: 'tour.detail.tabs.desc', popoverSide: 'bottom' },
+  { element: '.studio-actions', titleKey: 'tour.detail.actions.title', descKey: 'tour.detail.actions.desc', popoverSide: 'bottom', popoverAlign: 'end' },
+]
+onMounted(() => setTimeout(() => autoTour('detail', DETAIL_TOUR, t), 700))
 </script>
 
 <style scoped>
 .page {
-  padding: 20px 28px 40px;
+  display: flex;
+  flex-direction: column;
+  padding: 8px;
+  gap: 8px;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--surface-base);
+}
+
+/* 顶栏以下的可滚动内容区（左右留白与剧集页卡片对齐） */
+.page-body {
+  min-height: 0;
   overflow-y: auto;
-  height: 100%;
+  padding: 12px 12px 40px;
   animation: fadeUp 0.35s var(--ease-out) both;
 }
 
-/* Header card：单行紧凑 */
-.page-head {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 16px;
-  border-radius: var(--radius-lg);
-  margin-bottom: 14px;
-}
-.head-info { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .head-action { flex-shrink: 0; }
-
-.back-btn {
-  width: 30px; height: 30px; flex-shrink: 0;
-  display: flex; align-items: center; justify-content: center;
-  border: none; border-radius: 50%;
-  background: var(--overlay-track); color: var(--text-1);
-  cursor: pointer;
-  transition: background 0.16s var(--ease-out), color 0.16s var(--ease-out), box-shadow 0.16s var(--ease-out);
-}
-.back-btn:hover { background: var(--bg-active); color: var(--text-0); }
-.back-btn:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 3.5px var(--button-focus);
-}
-
-.page-title {
-  font-size: 17px; font-weight: 700;
-  letter-spacing: -0.02em;
-  line-height: 1.2;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.page-meta { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
-.meta-item {
-  display: flex; align-items: center; gap: 5px;
-  font-size: 12px; color: var(--text-2);
-}
 
 /* 主 Tab 导航 */
 .page-tabs {
@@ -1616,9 +2143,77 @@ onMounted(load)
 .mat-detail-secondary-actions,
 .mat-detail-primary-actions { display: flex; align-items: center; gap: 8px; }
 
+/* AI 分集预览列表 */
+.source-card { padding: 14px; }
+.source-toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.source-actions { margin-left: auto; display: flex; gap: 8px; }
+.source-textarea { width: 100%; min-height: 420px; line-height: 1.7; resize: vertical; }
+.outline-card { padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.outline-row {
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--surface-outline);
+  border-radius: var(--radius); background: var(--surface-muted);
+}
+.outline-head { display: flex; align-items: center; gap: 8px; }
+.outline-ep { font-weight: 800; font-size: 12px; color: var(--accent); flex-shrink: 0; }
+.outline-title-input { font-weight: 700; }
+.outline-chain { align-self: center; color: var(--text-3); font-size: 11px; }
+.split-preview-list {
+  display: flex; flex-direction: column; gap: 8px;
+  max-height: 320px; overflow-y: auto;
+}
+.split-preview-row {
+  display: flex; align-items: flex-start; gap: 8px;
+  padding: 9px 10px;
+  border: 1px solid var(--surface-outline);
+  border-radius: var(--radius); background: var(--surface-muted);
+}
+.split-preview-main { flex: 1; min-width: 0; }
+.split-preview-title { font-weight: 700; font-size: 13px; }
+.split-preview-summary { margin-top: 2px; color: var(--text-2); font-size: 12px; line-height: 1.5; }
+.split-preview-hook { margin-top: 2px; color: var(--accent); font-size: 11px; }
+.split-running-hint { display: flex; align-items: center; gap: 6px; color: var(--accent); }
+
+/* 任务抽屉样式由 GenTaskDrawer 共享组件提供 */
+
+/* ===== 素材库：新增/参考图/跨集挂接 ===== */
+.asset-toolbar { display: flex; align-items: center; gap: 10px; }
+.asset-toolbar .asset-filter { flex-shrink: 0; }
+.danger-text { color: var(--danger, #e5484d); }
+.refimg-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 8px;
+}
+.refimg-item {
+  position: relative; aspect-ratio: 1; border-radius: var(--radius, 8px);
+  overflow: hidden; border: 1px solid var(--surface-outline); background: var(--surface-muted);
+}
+.refimg-item img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.refimg-del {
+  position: absolute; top: 3px; right: 3px; width: 17px; height: 17px;
+  display: flex; align-items: center; justify-content: center;
+  border: none; border-radius: 50%; cursor: pointer;
+  background: rgba(0, 0, 0, 0.62); color: #fff;
+  transition: background 0.15s var(--ease-out);
+}
+.refimg-del:hover { background: rgba(220, 38, 38, 0.9); }
+.refimg-empty { font-size: 12px; margin: 0; }
+.ep-link-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.ep-link-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 4px 10px; font-size: 12px; cursor: pointer;
+  border: 1px solid var(--surface-outline); border-radius: 999px;
+  background: var(--surface-muted); color: var(--text-2);
+  transition: all 0.15s var(--ease-out);
+}
+.ep-link-chip:hover { color: var(--text-0); border-color: var(--text-3); }
+.ep-link-chip.on {
+  background: var(--accent-soft, rgba(59, 130, 246, 0.14)); color: var(--accent);
+  border-color: var(--accent);
+}
+
 @media (max-width: 860px) {
-  .page { padding: 16px 16px 32px; }
-  .page-head { flex-wrap: wrap; }
+  .page-body { padding: 12px 12px 32px; }
   .ep-grid { grid-template-columns: 1fr; }
   .ep-actions { opacity: 1; } /* 移动端始终显示操作按钮 */
   .dialog-foot { flex-wrap: wrap; gap: 10px; }

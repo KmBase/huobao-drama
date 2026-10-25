@@ -46,6 +46,9 @@ temp/
 .superpowers/
 /CLAUDE.md
 /AGENTS.md
+/.acl-recovery/
+/.volta-home/
+/.volta-run/
 
 # Agent workspace (skills/prompts 为策划模板保持跟踪，其余产出忽略)
 backend/workspace/*

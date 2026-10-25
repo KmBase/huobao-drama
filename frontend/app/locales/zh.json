@@ -124,6 +124,7 @@
     "emptyTitle": "新建第一个短剧项目",
     "emptyDesc": "创建后选择集开始制作。",
     "deleted": "已删除",
+    "created": "项目已创建",
     "noEpisodes": "暂无剧集",
     "episodeN": "第 {n} 集",
     "ratio": {
@@ -145,6 +146,8 @@
       "namePlaceholder": "例如：都市情感短剧《时光邮局》",
       "style": "视觉风格",
       "stylePlaceholder": "选择风格",
+      "stylePack": "剧本风格",
+      "stylePackPlaceholder": "不使用（可后续在项目中补充）",
       "aspectRatio": "画面比例",
       "aspectRatioPlaceholder": "选择画面比例",
       "aspectRatioHint": "创建后固定，视频生成将统一使用该比例",
@@ -169,12 +172,31 @@
       "addEpisode": "添加集"
     },
     "tabs": {
-      "episodes": "剧集列表",
-      "assets": "素材库"
+      "source": "原著",
+      "outline": "大纲",
+      "episodes": "剧集",
+      "assets": "素材"
+    },
+    "source": {
+      "charCount": "当前 {n} 字",
+      "saving": "保存中...",
+      "saved": "原著已保存",
+      "placeholder": "粘贴小说全文。保存后可在此直接发起 AI 分集，切分结果写入各集的原始内容。",
+      "hint": "原著是项目级源文本；AI 分集按情节自然断点将其切分为多集，每集以悬念结尾。"
+    },
+    "outline": {
+      "hint": "大纲是全集蓝图：保存后同步为本地大纲 md，作为全局提示词注入全部 Agent（改写时承接前集钩子、落本集钩子）。",
+      "empty": "还没有剧集。先在原著 tab 用 AI 分集，或手动添加集。",
+      "saveSync": "保存并同步大纲",
+      "saving": "保存中...",
+      "saved": "大纲已保存并同步",
+      "titlePlaceholder": "集标题",
+      "summaryPlaceholder": "本集概要（给 Agent 看的剧情摘要）",
+      "hookPlaceholder": "结尾钩子（本集结尾留什么悬念）",
+      "chain": "下一集开头承接此钩子"
     },
     "ep": {
       "statusTitle": "点击标记本集状态",
-      "resTitle": "点击修改本集视频分辨率",
       "deleteTitle": "删除本集",
       "enter": "进入制作",
       "scriptReady": "剧本已录入",
@@ -183,10 +205,7 @@
       "emptyCreateText": "点击创建第一集",
       "addNextTitle": "添加第 {n} 集",
       "addNextText": "添加第 {n} 集",
-      "episodeN": "第 {n} 集",
-      "res720": "720p · 高清",
-      "res480": "480p · 流畅",
-      "resSwitched": "本集视频分辨率已切换为 {res}"
+      "episodeN": "第 {n} 集"
     },
     "epCreate": {
       "title": "创建新集",
@@ -194,13 +213,86 @@
       "titlePlaceholder": "默认按集数自动命名",
       "titleHint": "留空时会自动按集数命名，例如“{example}”。",
       "example": "第 {n} 集",
-      "resolution": "视频分辨率",
-      "resolutionPlaceholder": "选择分辨率",
-      "resolutionHint": "创建后本集视频按此分辨率生成，之后仍可在集卡片上修改。",
-      "lockCopy": "创建后自动锁定当前启用的图片与视频生成能力。",
+      "inheritCopy": "生成模型与风格跟随项目配置，在项目配置中统一修改。",
       "creating": "创建中...",
       "create": "创建",
       "added": "已添加新集"
+    },
+    "config": {
+      "button": "项目配置",
+      "title": "项目配置",
+      "name": "项目名称",
+      "namePlaceholder": "项目名称",
+      "nameRequired": "项目名称不能为空",
+      "visualStyle": "视觉风格",
+      "scriptStyle": "剧本风格",
+      "stylePlaceholder": "选择视觉风格",
+      "packPlaceholder": "不使用（可后续配置）",
+      "packHint": "绑定后按流水线环节注入各 Agent 的风格指导",
+      "status": "项目状态",
+      "cover": "项目封面",
+      "coverEmpty": "暂无封面",
+      "coverUpload": "上传图片",
+      "coverUploading": "上传中...",
+      "coverRemove": "移除",
+      "coverHint": "支持 JPG/PNG/WebP，上传后保存生效，展示在项目列表",
+      "language": "内容语言",
+      "languagePlaceholder": "跟随全局设置",
+      "languageHint": "AI 产出（剧本/素材/分镜/提示词）使用的目标语言，仅对本项目生效",
+      "modelSection": "生成模型",
+      "modelPlaceholder": "跟随 AI 配置默认",
+      "modelHint": "按类型覆盖本项目使用的文本/图片/视频模型，未选择的跟随设置页 AI 配置默认",
+      "resolution": "视频分辨率",
+      "resolutionHint": "本项目视频生成统一使用的分辨率，各集继承；改后仅影响新生成的视频",
+      "saving": "保存中...",
+      "saved": "项目配置已保存"
+    },
+    "split": {
+      "button": "AI 分集",
+      "title": "AI 分集",
+      "source": "小说原文",
+      "sourcePlaceholder": "粘贴小说全文或片段，将按情节切分为多集",
+      "sourceHint": "当前 {n} 字",
+      "count": "目标集数",
+      "countHint": "按情节自然断点切分，每集以悬念结尾",
+      "sourceRequired": "请先粘贴小说原文",
+      "countRequired": "请填写目标集数",
+      "generating": "切分中...",
+      "generate": "生成分集",
+      "submitted": "已提交分集任务，页面可继续操作",
+      "submittedShort": "任务进行中...",
+      "runningHint": "分集任务后台执行中，可关闭窗口；完成后结果自动回填，也可在任务列表查看",
+      "emptyResult": "任务结果为空，请重试",
+      "failed": "分集任务失败",
+      "doneToast": "AI 分集已完成，结果已回填",
+      "previewHint": "共 {n} 集 · 合计约 {chars} 字，确认后逐集写入原始内容",
+      "hookLabel": "结尾钩子",
+      "charCount": "本集约 {n} 字",
+      "back": "重新编辑",
+      "apply": "创建 {n} 集",
+      "applying": "创建中...",
+      "applied": "已创建 {n} 集，原始内容已写入",
+      "lockCopy": "创建后每集的原始内容为对应原文段落，可在剧情工作台中改写为剧本。"
+    },
+    "taskCenter": {
+      "button": "任务",
+      "stAll": "全部",
+      "st_processing": "进行中",
+      "st_completed": "已完成",
+      "st_failed": "失败",
+      "st_cancelled": "已取消",
+      "typeSplit": "AI 分集",
+      "typeImage": "图片生成",
+      "typeVideo": "视频生成",
+      "typeText": "Agent",
+      "clear": "清理已结束",
+      "empty": "暂无任务。发起图片/视频生成或 AI 分集后，任务会出现在这里。",
+      "viewSplit": "查看结果",
+      "retry": "重试",
+      "retried": "重试已开始",
+      "deleteTitle": "删除任务",
+      "deleteMessage": "确定删除任务 #{id}？仅删除任务记录，已生成的结果保留。",
+      "cleared": "已清理 {n} 条任务记录"
     },
     "epDelete": {
       "message": "确定删除「{title}」？删除后不可在列表中查看，其分镜与生成记录将不再可访问。"
@@ -223,16 +315,35 @@
       "finalPromptLabel": "最终提示词",
       "finalPromptSub": "由 AI 根据信息生成，可手动修改后保存",
       "genPromptTitle": "由 AI 生成最终提示词",
-      "needEpisodeFirst": "请先在「剧集列表」创建至少一集",
+      "needEpisodeFirst": "请先在「剧集」创建至少一集",
       "promptPlaceholder": "点击「生成提示词」由 AI 根据信息生成，或在此手动填写。手动修改并保存后，下次生成图片将使用此提示词。",
       "genImage": "生成图片",
       "saving": "保存中…",
       "generating": "{kind}「{name}」图片生成中",
       "genTimeout": "{kind}「{name}」生成超时，可稍后刷新查看",
       "uploaded": "{kind}「{name}」图片已上传",
-      "needEpisodeForImage": "请先在「剧集列表」创建至少一集，才能生成素材图",
-      "needEpisodeForPrompt": "请先在「剧集列表」创建至少一集，才能生成最终提示词",
-      "locationRequired": "请填写地点"
+      "needEpisodeForImage": "请先在「剧集」创建至少一集，才能生成素材图",
+      "needEpisodeForPrompt": "请先在「剧集」创建至少一集，才能生成最终提示词",
+      "locationRequired": "请填写地点",
+      "addAsset": "新增素材",
+      "assetKind": "素材类型",
+      "createHint": "素材建在项目层，创建后可在编辑弹窗中勾选挂接到各集。",
+      "created": "素材已创建",
+      "deleteAsset": "删除素材",
+      "deleteConfirm": "再点一次确认删除",
+      "deleted": "素材已删除",
+      "refImages": "参考图",
+      "refImagesHint": "生成素材图时随提示词一并提交",
+      "addRefImages": "添加参考图",
+      "refImagesEmpty": "还没有参考图；上传后生成素材图会自动作为参考。",
+      "removeRefImage": "移除",
+      "refImageMax": "参考图最多 10 张",
+      "refImageSaved": "参考图已保存",
+      "episodeLinks": "出现在哪些集",
+      "episodeLinksHint": "勾选即可跨集引用，即时生效",
+      "episodeN": "第 {n} 集",
+      "linked": "已挂接到该集",
+      "unlinked": "已从该集移出"
     }
   },
   "settings": {
@@ -240,7 +351,8 @@
     "tabs": {
       "general": "通用",
       "ai": "AI 服务",
-      "styles": "风格预设",
+      "styles": "视觉风格",
+      "packs": "剧本风格",
       "storage": "存储位置",
       "network": "公网访问",
       "about": "关于更新",
@@ -305,7 +417,7 @@
       }
     },
     "styles": {
-      "title": "风格预设",
+      "title": "视觉风格",
       "desc": "创建项目时选择的视觉风格，其英文提示词片段会自动注入角色图与场景图生成。停用的风格不出现在创建选项中。",
       "allTitle": "全部风格",
       "count": "{active} 个启用 · {total} 个总计",
@@ -432,6 +544,7 @@
       "extractor": "角色场景提取",
       "storyboardBreaker": "分镜拆解",
       "promptGenerator": "提示词",
+      "episodeSplitter": "原著分集",
       "langFallback": "跟随中文",
       "followContentLang": "编辑语言跟随：{lang}（在「通用 → AI 内容语言」切换）"
     },
@@ -519,6 +632,54 @@
       "title": "删除风格预设",
       "message": "确定删除风格「{name}」？已使用此风格的项目不受影响，但删除的内置风格重启后可能恢复，建议改用「停用」。"
     },
+    "packs": {
+      "title": "剧本风格",
+      "desc": "风格预设按流水线环节分段管理：绑定项目后，原著分集、剧本改写、资产提取、分镜拆解、提示词生成各 Agent 自动收到自己职责内的那一段指导，整条流水线风格统一。与视觉风格（生图提示词前缀）相互独立。",
+      "allTitle": "全部风格预设",
+      "count": "启用 {active} / 共 {total}",
+      "empty": "暂无风格预设",
+      "episodeSplit": "原著分集",
+      "script": "剧本改写",
+      "extractor": "资产提取",
+      "storyboard": "分镜拆解",
+      "prompt": "提示词生成"
+    },
+    "packDialog": {
+      "editTitle": "编辑风格预设",
+      "addTitle": "添加风格预设",
+      "sub": "五段指导分别注入五个 Agent 的提示词，至少填一项；可先用 AI 生成再人工调整。",
+      "tag": "剧本",
+      "generateLabel": "AI 生成",
+      "generatePlaceholder": "用一句话描述风格，如：海外的中世纪复仇故事，译制腔",
+      "generateBtn": "生成",
+      "generateHint": "生成后回填下方五段，可修改再保存；使用当前 AI 服务配置中的文本模型。",
+      "generateRequired": "请先填写风格描述",
+      "generateDone": "已生成，请检查并调整后保存",
+      "name": "风格预设名称",
+      "namePlaceholder": "如 快节奏爽剧、悬疑烧脑、甜宠轻喜",
+      "key": "风格预设 key",
+      "keyPlaceholder": "如 fast-paced、suspense（小写字母/数字/中划线）",
+      "keyHint": "存入项目的风格预设标识，创建后不可修改。",
+      "script": "剧本改写指导（对白 + 节奏）",
+      "scriptPlaceholder": "如：对白短促有力，单句不超过 15 字；开场 10 秒内进入冲突，单集至少 2 个情绪爆点",
+      "episodeSplit": "原著分集指导",
+      "episodeSplitPlaceholder": "如：分集粒度与改编取舍——什么样的情节独立成集、可压缩/删除的内容、钩子类型偏好",
+      "extractor": "资产提取指导",
+      "extractorPlaceholder": "如：资产描述客观简洁，保留可作线索的细节，不做气氛渲染",
+      "storyboard": "分镜拆解指导",
+      "storyboardPlaceholder": "如：平均 3-5 秒一切，爆点用特写，不使用长空镜",
+      "prompt": "提示词生成指导",
+      "promptPlaceholder": "如：视频提示词强调动势与快切节奏，镜头运动干脆",
+      "description": "描述",
+      "descPlaceholder": "一句话说明该风格包适用的题材",
+      "sort": "排序",
+      "required": "名称、key 必填",
+      "requiredGuide": "五段指导至少填一项"
+    },
+    "packDelete": {
+      "title": "删除风格预设",
+      "message": "确定删除风格预设「{name}」？已绑定此预设的项目不再注入对应指导（绑定关系保留），但删除的内置预设重启后可能恢复，建议改用「停用」。"
+    },
     "skillDelete": {
       "title": "删除 Skill",
       "message": "确定删除 Skill「{id}」？删除后对应 Agent 将回退到内置默认提示词。"
@@ -532,8 +693,7 @@
       "tasks": "任务",
       "viewFilm": "查看成片",
       "continue": "继续制作",
-      "start": "开始制作",
-      "resolution": "分辨率"
+      "start": "开始制作"
     },
     "model": {
       "defaultWith": "默认 · {model}",
@@ -610,6 +770,23 @@
       "delChar": "删除角色",
       "delScene": "删除场景",
       "delProp": "删除道具",
+      "fromLibrary": "从素材库添加",
+      "unlink": "移出本集",
+      "unlinkBtn": "移出本集",
+      "unlinkTitle": "移出{type}",
+      "unlinkMessage": "将「{name}」移出本集？素材本身不会被删除，其他集仍可继续使用。",
+      "unlinkConfirm": "移出",
+      "unlinked": "已将{type}移出本集",
+      "linked": "已挂接「{name}」到本集",
+      "libraryPickTitle": "添加{type}",
+      "libraryPickEmpty": "暂无可添加的素材，请先在其他集提取或到素材库新增",
+      "libraryPickHint": "点击即挂接到本集；素材在项目内共享，修改对所有集生效。",
+      "refImages": "参考图",
+      "addRefImages": "添加参考图",
+      "refImagesEmpty": "还没有参考图；上传后生成资产图会自动作为参考。",
+      "removeRefImage": "移除",
+      "refImageMax": "参考图最多 10 张",
+      "refImageSaved": "参考图已保存",
       "charImageTitle": "{name} 角色形象",
       "sceneImageTitle": "{name} 场景图",
       "propImageTitle": "{name} 道具图",
@@ -822,7 +999,6 @@
       "genTimeout": "视频生成超时",
       "allDone": "所有镜头视频已生成",
       "moderationHint": "疑似真人/敏感内容审核未通过，可在顶栏切换其他视频模型后重试",
-      "resolutionSwitched": "本集视频分辨率已切换为 {label}",
       "noneToGenerate": "没有可生成的镜头",
       "batchStarted": "已发起 {n} 个视频生成任务",
       "retryFailed": "重试失败({n})",
@@ -863,7 +1039,7 @@
       "noBoundRefs": "暂无绑定素材（在中间「参考素材」区点击绑定）"
     },
     "tasks": {
-      "title": "生成任务列表",
+      "title": "任务",
       "meta": "按创建时间倒序 · {n} 个任务",
       "emptyTitle": "暂无生成任务",
       "emptyDesc": "在资产、分镜或视频步骤中触发图片 / 视频生成后,任务会自动出现在这里。",
@@ -881,7 +1057,7 @@
       "clear": "清理",
       "clearConfirm": "确定清理 {n} 条已结束的任务记录？进行中的任务不受影响，已生成的媒体文件保留。",
       "cleared": "已清理 {n} 条任务记录",
-      "retried": "已重新提交生成任务",
+      "retried": "重试已开始",
       "actionProbe": "查询进度",
       "probeCompleted": "上游已完成，结果已回写",
       "probeFailed": "上游返回失败",
@@ -1012,10 +1188,24 @@
         "desc": "左侧切换：AI 服务、通用（界面语言/内容语言）、风格预设、Agent 提示词与技能、存储位置、关于更新。"
       }
     },
+    "detail": {
+      "welcome": {
+        "title": "👋 项目工作台",
+        "desc": "这里是单个项目的管理页：维护原著与大纲、管理剧集和素材。"
+      },
+      "tabs": {
+        "title": "四个分区",
+        "desc": "原著（分集来源）、大纲（各集钩子）、剧集（进入制作）、素材（角色/场景/道具库）。"
+      },
+      "actions": {
+        "title": "任务与配置",
+        "desc": "任务列表聚合所有生成任务；项目配置里可设置封面、风格、内容语言与生成模型。"
+      }
+    },
     "episode": {
       "topbar": {
-        "title": "顶栏：模型与状态",
-        "desc": "随时切换本次生成用的文本/图片/视频模型；分辨率与时长档位随模型联动。"
+        "title": "顶栏：任务与配置",
+        "desc": "右侧集中了刷新、任务抽屉与项目配置；生成用的模型/语言在「项目配置」里统一设置。"
       },
       "script": {
         "title": "第 1 步 · 剧本",

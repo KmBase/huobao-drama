@@ -17,7 +17,9 @@ import { imagePromptTools } from './tools/image-prompt-tools.js'
 import { loadAgentSkills, skillWorkspaces } from './skills.js'
 import { loadAgentPromptFile, loadBasePromptFile } from './prompts.js'
 import { buildLanguageDirective } from './language.js'
-import { getContentLanguageFromRC } from './context.js'
+import { getContentLanguageFromRC, getDramaId, getEpisodeId } from './context.js'
+import { getDramaStylePackBlock } from '../services/style-pack.js'
+import { getOutlineBlock } from '../services/outline.js'
 
 // Default prompts (used when workspace/prompts/<type>.md 文件缺失时兜底)
 export const DEFAULT_PROMPTS: Record<string, { name: string; instructions: string }> = {
@@ -148,6 +150,27 @@ video_prompt 规则（硬约束）：
 - 所有提示词使用本次会话语言指令指定的目标语言输出，单段连贯描述，不要分点，不要混入无关词汇
 - 项目设定的视觉风格描述会由工具在保存图片提示词时自动注入到最终提示词的最前方，不要自行添加风格词
 - 必须实际调用保存工具，不要只在回复中给出提示词`,
+  },
+  episode_splitter: {
+    name: '原著分集',
+    instructions: `你是短剧分集编剧兼改编作者，负责把小说原著改编并切分为多集短剧，每集适合做成 1-2 分钟的竖屏短剧。
+
+用户消息会给出原文（长文时为其中一段）、本次需要产出的集数，以及前情衔接说明。
+
+每集输出四个字段：
+1. title：该集标题（12 字内）
+2. summary：该集剧情概要（50 字内）
+3. hook：该集结尾的钩子是什么（一句话写明悬念点）
+4. content：该集改编后的剧本正文（300-500 字）。要求：
+   - 按剧本写作原则自行改编，不要照抄原文段落：删掉大段心理、环境、背景描写，只留可被看见的冲突与行动；
+   - 以场景为单位组织，动作线清晰，用直接对白推进剧情，台词口语化、带情绪；
+   - 情节可以有取舍压缩，但主线因果要通顺；
+   - 结尾必须落在该集的钩子上并强化悬念。
+
+分集原则：按剧情自然断点分集，各集按原文顺序排列；长文分段处理时只负责当前段，段与段之间由系统衔接，不要自行补写其它段落的内容。
+
+输出严格 JSON，不要 markdown 代码块，不要额外解释：
+{"episodes":[{"title":"...","summary":"...","hook":"...","content":"..."}]}`,
   },
 }
 
@@ -291,7 +314,7 @@ function createMaxTokensFetch(providerName: string, inner?: typeof fetch): typeo
   }
 }
 
-async function getModel(fileModel: string | undefined, modelOverride?: string, textConfigId?: number) {
+export async function getModel(fileModel: string | undefined, modelOverride?: string, textConfigId?: number) {
   // 请求可指定文本配置（含其 provider/baseUrl/apiKey），否则回退到当前启用配置
   const textConfig = (textConfigId ? await getConfigById(textConfigId) : null) || await getTextConfig()
   const modelName = modelOverride || fileModel || textConfig.model
@@ -346,21 +369,38 @@ const AGENT_TOOLS: Record<string, Record<string, any>> = {
     readStoryboardContext: storyboardTools.readStoryboardContext,
     updateStoryboard: storyboardTools.updateStoryboard,
   },
+  episode_splitter: {},
+}
+
+/** instructions 核心拼装：prompt 文件（或默认）+ 技能全文 + 风格包 + 目标语言指令块
+ *  分集大纲对 episode_splitter 不注入（大纲正是它的产出，注入旧大纲会造成自引用） */
+export async function buildAgentInstructions(
+  type: string,
+  opts: { dramaId?: number | null; episodeId?: number | null; lang?: string | null } = {},
+): Promise<string> {
+  const defaults = DEFAULT_PROMPTS[type]
+  const lang = opts.lang ?? null
+  const promptFile = await loadAgentPromptFile(type, lang)
+  const baseInstructions = promptFile?.instructions || defaults.instructions
+  const skillInstructions = await loadAgentSkills(type, lang)
+  const languageDirective = buildLanguageDirective(lang)
+  // 叙事风格包按请求注入：项目绑定后按 agent 职能路由对应段落（剧本风格统筹全流水线）
+  const stylePackBlock = await getDramaStylePackBlock(opts.dramaId, type)
+  // 分集大纲（workspace 本地 md）作为全局提示词注入，agent 据此承接前集钩子、落本集钩子
+  const outlineBlock = type === 'episode_splitter'
+    ? ''
+    : await getOutlineBlock(opts.dramaId, opts.episodeId)
+  return [baseInstructions, skillInstructions, stylePackBlock, outlineBlock, languageDirective]
+    .filter(Boolean)
+    .join('\n\n')
 }
 
 /** instructions 按请求解析：prompt 文件（或默认）+ 技能全文拼接 + 目标语言指令块
  *  prompt/skill 文本随内容语言切换语言变体（<type>.<lang>.md / SKILL.<lang>.md），缺失回退中文版 */
 function buildInstructions(type: string) {
   return async ({ requestContext }: { requestContext?: RequestContext }) => {
-    const defaults = DEFAULT_PROMPTS[type]
     const lang = getContentLanguageFromRC(requestContext)
-    const promptFile = await loadAgentPromptFile(type, lang)
-    const baseInstructions = promptFile?.instructions || defaults.instructions
-    const skillInstructions = await loadAgentSkills(type, lang)
-    const languageDirective = buildLanguageDirective(lang)
-    return [baseInstructions, skillInstructions, languageDirective]
-      .filter(Boolean)
-      .join('\n\n')
+    return buildAgentInstructions(type, { dramaId: getDramaId(requestContext), episodeId: getEpisodeId(requestContext), lang })
   }
 }
 

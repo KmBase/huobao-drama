@@ -3,7 +3,7 @@
  * 路由层 build → generate({ requestContext }) → 工具 execute 内读取
  */
 import { RequestContext } from '@mastra/core/request-context'
-import { getContentLanguage, type ContentLanguage } from '../services/app-settings.js'
+import { getContentLanguage, getDramaContentLanguage, type ContentLanguage } from '../services/app-settings.js'
 
 export interface AgentRequestContextValues {
   episodeId: number
@@ -20,9 +20,11 @@ export async function buildAgentRequestContext(values: AgentRequestContextValues
   rc.set('dramaId', values.dramaId)
   if (values.modelOverride) rc.set('modelOverride', values.modelOverride)
   if (values.textConfigId) rc.set('textConfigId', values.textConfigId)
-  // 语言在构建处统一解析：4 条链路（chat/提取/图片提示词/视频提示词）都经过这里，
-  // 全局设置一处生效；显式传入 values.language 可按请求覆盖
-  rc.set('language', values.language ?? await getContentLanguage())
+  // 语言在构建处统一解析：4 条链路（chat/提取/图片提示词/视频提示词）都经过这里。
+  // 层次：显式请求覆盖 > 项目配置（dramas.language）> 全局设置
+  rc.set('language', values.language
+    ?? (values.dramaId ? await getDramaContentLanguage(values.dramaId) : null)
+    ?? await getContentLanguage())
   return rc
 }
 

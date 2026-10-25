@@ -3,12 +3,14 @@
  * 创建(processing) → 适配器构建请求 → 同步完成或异步轮询 → 下载落盘 → 回写业务表
  */
 import { db, getInsertId, schema } from '../db/index.js'
-import { eq, and, lt } from 'drizzle-orm'
+import { eq, and, lt, isNull, isNotNull, inArray } from 'drizzle-orm'
 import { waitUntil } from '@vercel/functions'
 import { getActiveConfig, getConfigById } from './ai.js'
 import { getPublicMediaBaseUrl } from './app-settings.js'
+import { currentMediaToken } from './access-auth.js'
+import { startEpisodeSplitTask } from './episode-split.js'
 import { now } from '../utils/response.js'
-import { downloadFile, fetchImageAsCompressedDataUrl, generateImageThumb, readImageAsCompressedDataUrl, readImageAsDataUrl, saveBase64Image } from '../utils/storage.js'
+import { compressReferenceImageForUrl, downloadFile, fetchImageAsCompressedDataUrl, generateImageThumb, readImageAsCompressedDataUrl, readImageAsDataUrl, saveBase64Image } from '../utils/storage.js'
 import { extractVideoPoster } from '../utils/video-poster.js'
 import { getImageAdapter, getVideoAdapter } from './adapters/registry'
 import type { AIConfig } from './adapters/types'
@@ -596,7 +598,8 @@ async function publicMediaBase(): Promise<string | null> {
   return env || null
 }
 
-/** 本地 static 路径 → 公网 URL；未配置出口时抛出可操作的中文错误 */
+/** 本地 static 路径 → 公网 URL；未配置出口时抛出可操作的中文错误。
+ *  启用访问密码时自动附加媒体令牌（仅放行 /static/*），否则上游回源会被 401 拦下 */
 async function toPublicMediaUrl(raw: string, kind: 'image' | 'video' | 'audio' | 'file'): Promise<string> {
   const base = await publicMediaBase()
   if (!base) {
@@ -607,7 +610,8 @@ async function toPublicMediaUrl(raw: string, kind: 'image' | 'video' | 'audio' |
     )
   }
   const p = raw.startsWith('/') ? raw : `/${raw}`
-  return `${base}${p}`
+  const mediaToken = await currentMediaToken()
+  return mediaToken ? `${base}${p}?token=${mediaToken}` : `${base}${p}`
 }
 
 /**
@@ -683,9 +687,10 @@ async function normalizeReferenceImages(refs: string[] | null | undefined): Prom
 /**
  * 参考图 → 公网 URL（public-url 协议，如 Agnes）。
  * 与 normalizeReferenceImages 对偶：不下载不编码，只把本地路径换成上游可访问的地址。
+ * 本地大图（>1MB）先压成 JPEG 副本再暴露 URL，避免上游下载超时 / 单图体积超限。
  */
 async function resolveReferenceImages(refs: string[] | null | undefined): Promise<string[]> {
-  return resolvePublicMediaUrls(refs, 'image')
+  return resolvePublicMediaUrls(await compressReferenceImageList(refs), 'image')
 }
 
 /**
@@ -716,13 +721,22 @@ async function normalizeVideoReferenceUrls(refs: string[] | null | undefined): P
   return normalized.filter((item): item is string => !!item)
 }
 
+/** public-url 协议参考图先做体积压缩（本地大图 → JPEG 副本），失败/非本地路径原样透传 */
+async function compressReferenceImageList(refs: string[] | null | undefined): Promise<string[]> {
+  if (!Array.isArray(refs) || !refs.length) return []
+  return Promise.all(refs.map((item) => compressReferenceImageForUrl(String(item || '').trim())))
+}
+
 /** 视频首尾帧 / 参考图 → 公网 URL（public-url 协议） */
 async function resolveVideoReferenceUrl(value: string | null | undefined): Promise<string | null> {
-  return resolvePublicMediaUrl(value, 'image')
+  const raw = String(value || '').trim()
+  if (!raw) return null
+  const compressed = await compressReferenceImageForUrl(raw)
+  return resolvePublicMediaUrl(compressed, 'image')
 }
 
 async function resolveVideoReferenceUrls(refs: string[] | null | undefined): Promise<string[]> {
-  return resolvePublicMediaUrls(refs, 'image')
+  return resolvePublicMediaUrls(await compressReferenceImageList(refs), 'image')
 }
 
 function normalizeStoredVideoResolution(resolution: string | null | undefined): string | undefined {
@@ -836,6 +850,41 @@ export async function sweepProcessingTasks(): Promise<{ stale: number; resumed: 
 export type CancelOutcome = 'cancelled' | 'not-found' | 'not-cancellable'
 
 /**
+ * 启动恢复（本地常驻形态）：进程重启后内存中的轮询线程全部丢失。
+ * - 无上游 taskId（提交期被打断）：远端没有可查的任务，标 failed（提示重试）。
+ * - 有上游 taskId：远端生成仍在进行，恢复 processing 并重启进程内轮询循环；
+ *   上游若已完成会直接补下载回写——不重新提交、不重复计费。
+ * serverless 无"重启"语义，续跑由 /tasks/sweep cron 驱动，不走本函数。
+ */
+export async function recoverInterruptedTasks(): Promise<{ failed: number; resumed: number }> {
+  const orphan = await db.select({ id: schema.sysTask.id }).from(schema.sysTask)
+    .where(and(eq(schema.sysTask.status, 'processing'), isNull(schema.sysTask.taskId)))
+  if (orphan.length) {
+    await db.update(schema.sysTask)
+      .set({ status: 'failed', errorMsg: '服务重启，提交阶段中断，请重试', updatedAt: now() })
+      .where(and(eq(schema.sysTask.status, 'processing'), isNull(schema.sysTask.taskId)))
+  }
+
+  const interrupted = await db.select().from(schema.sysTask)
+    .where(and(eq(schema.sysTask.status, 'processing'), isNotNull(schema.sysTask.taskId)))
+  let resumed = 0
+  for (const record of interrupted) {
+    const p = parseTaskParams(record.params)
+    const config = (typeof p.__configId === 'number' ? await getConfigById(p.__configId) : null)
+      ?? await getActiveConfig(record.type as TaskType)
+    if (!config) {
+      await failTask(record.id, 'AI 服务配置已删除或未启用，任务无法继续（请重新配置后重试）')
+      continue
+    }
+    // 轮询循环每轮重读库内状态，拿重启前的 record 进入循环安全；上游已完成则直接补下载回写
+    void pollTask(record, config, record.taskId!)
+    await touchTask(record.id)
+    resumed++
+  }
+  return { failed: orphan.length, resumed }
+}
+
+/**
  * 取消进行中的任务：落库终态 cancelled。
  * 进程内轮询循环每轮重读状态会自行退出；轮询完成回写有 processing 守卫不会覆盖取消态。
  * 上游已提交的任务无法撤回（边缘仍可能出图/出片），但结果会被丢弃、资产不回写。
@@ -852,9 +901,14 @@ export async function cancelTask(id: number): Promise<CancelOutcome> {
 }
 
 /**
- * 重试失败/已取消的任务：按 sys_task.params 还原原始入参，新建一条任务（保留历史）。
- * 配置优先用原任务锁定的 __configId，已删除/停用时由 generate* 回退当前启用配置。
- * 提交期的公网地址解析在 processTask 内按当前设置重跑，本地路径无需改写。
+ * 重试失败/已取消的任务（复用同一条任务记录，保留任务历史与进度展示）：
+ * 1) 已提交过上游（有 taskId）：先查一次上游进度——
+ *    上游仍在生成/本次查询失败 → 复活任务继续轮询（不重新提交、不重复计费）；
+ *    上游已完成 → 直接补下载回写为 completed；
+ *    上游明确失败 → 清掉旧上游任务，原地重新提交。
+ * 2) 提交期失败（无 taskId）：原地重新提交。
+ * episode_split 为同步文本链路（无上游任务可查），保持原样新建任务。
+ * 配置优先用原任务锁定的 __configId，已删除/停用时回退当前启用配置。
  */
 export async function retryTask(id: number): Promise<number> {
   const [r] = await db.select().from(schema.sysTask).where(eq(schema.sysTask.id, id))
@@ -863,47 +917,56 @@ export async function retryTask(id: number): Promise<number> {
   if (r.status === 'completed') throw new Error('任务已完成，无需重试')
   const p = parseTaskParams(r.params)
   const configId = typeof p.__configId === 'number' ? p.__configId : undefined
-  if (r.type === 'image') {
-    if (!String(r.prompt || '').trim() && !(Array.isArray(p.referenceImages) && p.referenceImages.length)) {
-      throw new Error('原任务既无提示词也无参考图，无法重试')
-    }
-    return generateImage({
-      storyboardId: r.storyboardId ?? undefined,
-      dramaId: r.dramaId ?? undefined,
-      sceneId: r.sceneId ?? undefined,
-      characterId: r.characterId ?? undefined,
-      propId: r.propId ?? undefined,
-      prompt: r.prompt || '',
-      model: r.model || undefined,
-      size: p.size,
-      referenceImages: p.referenceImages,
-      frameType: p.frameType,
-      configId,
+  if (r.type === 'episode_split') {
+    const source = String(p.source || '').trim()
+    if (!source) throw new Error('原任务缺少原文，无法重试')
+    return startEpisodeSplitTask(r.dramaId ?? undefined, {
+      source,
+      episodeCount: Number(p.episodeCount) || 1,
+      textConfigId: typeof p.textConfigId === 'number' ? p.textConfigId : undefined,
     })
   }
-  return generateVideo({
-    storyboardId: r.storyboardId ?? undefined,
-    dramaId: r.dramaId ?? undefined,
-    prompt: r.prompt || '',
-    model: r.model || undefined,
-    referenceMode: p.referenceMode,
-    imageUrl: p.imageUrl,
-    firstFrameUrl: p.firstFrameUrl,
-    lastFrameUrl: p.lastFrameUrl,
-    referenceImageUrls: p.referenceImageUrls,
-    referenceVideoUrls: p.referenceVideoUrls,
-    referenceAudioUrls: p.referenceAudioUrls,
-    referenceFileUrl: p.referenceFileUrl,
-    referenceLinkUrl: p.referenceLinkUrl,
-    generateAudio: p.generateAudio === 1 ? true : p.generateAudio === 0 ? false : undefined,
-    duration: p.duration,
-    aspectRatio: p.aspectRatio,
-    resolution: p.resolution,
-    seed: p.seed,
-    promptExtend: p.promptExtend,
-    watermark: p.watermark,
-    configId,
-  })
+
+  const label = taskLabel(r.type as TaskType)
+  const config = (configId ? await getConfigById(configId) : null) ?? await getActiveConfig(r.type as TaskType)
+  if (!config) throw new Error('AI 服务配置已删除或未启用，无法重试')
+
+  // 上游任务已确认查不到（轮询 404 连击终态，如任务过期/TTL 回收）：查询无意义，直接原地重提
+  const upstreamUnreachable = /轮询端点 404/.test(r.errorMsg || '')
+
+  // 先复活同一条记录（failed/cancelled → processing）：上游完成回写与轮询守卫都要求 processing
+  await db.update(schema.sysTask)
+    .set({ status: 'processing', errorMsg: null, completedAt: null, updatedAt: now() })
+    .where(and(eq(schema.sysTask.id, id), inArray(schema.sysTask.status, ['failed', 'cancelled'])))
+
+  if (r.taskId && !upstreamUnreachable) {
+    let outcome: 'processing' | 'completed' | 'failed' = 'processing'
+    try {
+      outcome = await pollTick(r, config, r.taskId)
+    } catch (err: any) {
+      // 查询失败（网络抖动等）不武断重提：交给轮询循环继续盯上游
+      logTaskWarn(label, 'retry-poll-error', { id, taskId: r.taskId, error: err.message })
+    }
+    if (outcome !== 'failed') {
+      logTaskProgress(label, 'retry-resume', { id, taskId: r.taskId, outcome })
+      // 本地形态恢复进程内轮询循环；serverless 由 sweep tick 按 updatedAt 心跳接管
+      if (!IS_SERVERLESS) pollTask({ ...r, status: 'processing' }, config, r.taskId)
+      return id
+    }
+    // 上游明确失败（如内容审核拦截）：旧上游任务作废，原地重新提交
+    logTaskProgress(label, 'retry-resubmit', { id, reason: 'upstream-failed' })
+  } else {
+    logTaskProgress(label, 'retry-resubmit', { id, reason: 'submit-phase' })
+  }
+
+  // 原地重新提交：清掉旧上游任务与进度，复用同一条记录（params/资产关联不变）
+  await db.update(schema.sysTask)
+    .set({ taskId: null, errorMsg: null, completedAt: null, progress: JSON.stringify({ stage: 'submit' }), updatedAt: now() })
+    .where(and(eq(schema.sysTask.id, id), eq(schema.sysTask.status, 'processing')))
+  waitUntil(processTask(id, config).catch(err => {
+    logTaskError(label, 'retry-process', { id, error: err.message })
+  }))
+  return id
 }
 
 export type RefreshOutcome = 'processing' | 'completed' | 'failed' | 'not-eligible'

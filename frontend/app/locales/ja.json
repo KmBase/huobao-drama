@@ -124,6 +124,7 @@
     "emptyTitle": "最初のショートドラマプロジェクトを作成",
     "emptyDesc": "作成後、話を選んで制作を開始します。",
     "deleted": "削除しました",
+    "created": "プロジェクトを作成しました",
     "noEpisodes": "エピソードがありません",
     "episodeN": "第 {n} 話",
     "ratio": {
@@ -145,6 +146,8 @@
       "namePlaceholder": "例：都市ラブストーリー『タイムポスト局』",
       "style": "ビジュアルスタイル",
       "stylePlaceholder": "スタイルを選択",
+      "stylePack": "脚本スタイル",
+      "stylePackPlaceholder": "使用しない（後から設定可能）",
       "aspectRatio": "アスペクト比",
       "aspectRatioPlaceholder": "アスペクト比を選択",
       "aspectRatioHint": "作成後に固定され、動画生成はこの比率で統一されます",
@@ -169,12 +172,31 @@
       "addEpisode": "話を追加"
     },
     "tabs": {
-      "episodes": "エピソード一覧",
-      "assets": "素材ライブラリ"
+      "source": "原作",
+      "outline": "アウトライン",
+      "episodes": "エピソード",
+      "assets": "素材"
+    },
+    "source": {
+      "charCount": "現在 {n} 字",
+      "saving": "保存中...",
+      "saved": "原作を保存しました",
+      "placeholder": "小説の全文を貼り付け。保存後、ここから AI 分割を開始でき、結果は各話の原文に書き込まれます。",
+      "hint": "原作はプロジェクト単位のソーステキストです。AI 分割はプロットの自然な区切りで複数話に分け、各話を引きで終わらせます。"
+    },
+    "outline": {
+      "hint": "アウトラインは全話の設計図です。保存するとローカルのアウトライン md に同期され、全 Agent へのグローバルプロンプトとして注入されます（話またぎのフック接続）。",
+      "empty": "まだエピソードがありません。原作タブで AI 分割するか、手動で追加してください。",
+      "saveSync": "保存してアウトライン同期",
+      "saving": "保存中...",
+      "saved": "アウトラインを保存・同期しました",
+      "titlePlaceholder": "話のタイトル",
+      "summaryPlaceholder": "話の概要（Agent 用のプロット要約）",
+      "hookPlaceholder": "結びの引き（この話が残す引き）",
+      "chain": "次の話はこの引きを受けて始まります"
     },
     "ep": {
       "statusTitle": "クリックしてこの話の状態を設定",
-      "resTitle": "クリックしてこの話の動画解像度を変更",
       "deleteTitle": "この話を削除",
       "enter": "制作を開く",
       "scriptReady": "脚本入力済み",
@@ -183,10 +205,7 @@
       "emptyCreateText": "クリックして第 1 話を作成",
       "addNextTitle": "第 {n} 話を追加",
       "addNextText": "第 {n} 話を追加",
-      "episodeN": "第 {n} 話",
-      "res720": "720p · 高画質",
-      "res480": "480p · スムーズ",
-      "resSwitched": "この話の動画解像度を {res} に変更しました"
+      "episodeN": "第 {n} 話"
     },
     "epCreate": {
       "title": "新しい話を作成",
@@ -194,13 +213,86 @@
       "titlePlaceholder": "話数で自動命名",
       "titleHint": "空欄の場合は話数で自動命名されます（例：「{example}」）。",
       "example": "第 {n} 話",
-      "resolution": "動画解像度",
-      "resolutionPlaceholder": "解像度を選択",
-      "resolutionHint": "作成後、この話の動画はこの解像度で生成されます。後から話カードでも変更できます。",
-      "lockCopy": "作成時に現在有効な画像・動画生成能力がロックされます。",
+      "inheritCopy": "生成モデルとスタイルはプロジェクト設定に従います。プロジェクト設定で一括変更できます。",
       "creating": "作成中...",
       "create": "作成",
       "added": "新しい話を追加しました"
+    },
+    "config": {
+      "button": "プロジェクト設定",
+      "title": "プロジェクト設定",
+      "name": "プロジェクト名",
+      "namePlaceholder": "プロジェクト名",
+      "nameRequired": "プロジェクト名は必須です",
+      "visualStyle": "ビジュアルスタイル",
+      "scriptStyle": "脚本スタイル",
+      "stylePlaceholder": "ビジュアルスタイルを選択",
+      "packPlaceholder": "使用しない（後から設定可能）",
+      "packHint": "紐付けると工程別の指針が各 Agent に注入されます",
+      "status": "ステータス",
+      "cover": "カバー",
+      "coverEmpty": "カバーなし",
+      "coverUpload": "画像をアップロード",
+      "coverUploading": "アップロード中...",
+      "coverRemove": "削除",
+      "coverHint": "JPG/PNG/WebP。保存後に反映され、プロジェクト一覧に表示されます",
+      "language": "コンテンツ言語",
+      "languagePlaceholder": "グローバル設定に従う",
+      "languageHint": "AI の出力（脚本/素材/絵コンテ/プロンプト）の目標言語。このプロジェクトのみ有効",
+      "modelSection": "生成モデル",
+      "modelPlaceholder": "AI 設定のデフォルトに従う",
+      "modelHint": "種類ごとにこのプロジェクトのテキスト/画像/動画モデルを上書き。未選択は設定ページのデフォルトに従う",
+      "resolution": "動画解像度",
+      "resolutionHint": "このプロジェクトの動画生成に使用する解像度。各話が継承し、変更は新規生成にのみ影響します",
+      "saving": "保存中...",
+      "saved": "プロジェクト設定を保存しました"
+    },
+    "split": {
+      "button": "AI 分割",
+      "title": "AI 話分割",
+      "source": "小説の原文",
+      "sourcePlaceholder": "小説の全文または抜粋を貼り付け。プロットに沿って複数話に分割します",
+      "sourceHint": "現在 {n} 字",
+      "count": "目標話数",
+      "countHint": "プロットの自然な区切りで分割し、各話は引きで終わります",
+      "sourceRequired": "先に小説の原文を貼り付けてください",
+      "countRequired": "目標話数を入力してください",
+      "generating": "分割中...",
+      "generate": "分割を生成",
+      "submitted": "分割タスクを送信しました。操作を続けられます",
+      "submittedShort": "タスク実行中...",
+      "runningHint": "分割タスクはバックグラウンドで実行中です。ウィンドウを閉じてもOK。完了後は結果が自動反映され、タスク一覧でも確認できます",
+      "emptyResult": "タスク結果が空です。再試行してください",
+      "failed": "分割タスクが失敗しました",
+      "doneToast": "AI分割が完了し、結果を反映しました",
+      "previewHint": "全 {n} 話 · 合計約 {chars} 字。確定後、各話の原文を書き込みます",
+      "hookLabel": "結びの引き",
+      "charCount": "約 {n} 字",
+      "back": "編集し直す",
+      "apply": "{n} 話を作成",
+      "applying": "作成中...",
+      "applied": "{n} 話を作成し、原文を書き込みました",
+      "lockCopy": "各話の原文内容は対応する原文の抜粋です。制作ワークベンチで脚本にリライトできます。"
+    },
+    "taskCenter": {
+      "button": "タスク",
+      "stAll": "すべて",
+      "st_processing": "実行中",
+      "st_completed": "完了",
+      "st_failed": "失敗",
+      "st_cancelled": "キャンセル",
+      "typeSplit": "AI分割",
+      "typeImage": "画像生成",
+      "typeVideo": "動画生成",
+      "typeText": "Agent",
+      "clear": "終了済みを整理",
+      "empty": "タスクはまだありません。画像/動画生成やAI分割を実行すると表示されます。",
+      "viewSplit": "結果を見る",
+      "retry": "再試行",
+      "retried": "再試行を開始しました",
+      "deleteTitle": "タスクを削除",
+      "deleteMessage": "タスク #{id} を削除しますか？記録のみ削除され、生成結果は保持されます。",
+      "cleared": "{n} 件のタスク記録を整理しました"
     },
     "epDelete": {
       "message": "「{title}」を削除しますか？一覧から非表示になり、その分镜と生成記録にもアクセスできなくなります。"
@@ -232,7 +324,26 @@
       "uploaded": "{kind}「{name}」の画像をアップロードしました",
       "needEpisodeForImage": "素材画像を生成するには、先に「エピソード一覧」で 1 話以上作成してください",
       "needEpisodeForPrompt": "最終プロンプトを生成するには、先に「エピソード一覧」で 1 話以上作成してください",
-      "locationRequired": "場所を入力してください"
+      "locationRequired": "場所を入力してください",
+      "addAsset": "素材を追加",
+      "assetKind": "素材タイプ",
+      "createHint": "素材はプロジェクト単位で作成され、編集ダイアログで各エピソードに紐付けできます。",
+      "created": "素材を作成しました",
+      "deleteAsset": "素材を削除",
+      "deleteConfirm": "もう一度クリックで確認",
+      "deleted": "素材を削除しました",
+      "refImages": "参照画像",
+      "refImagesHint": "画像生成時にプロンプトと一緒に送信されます",
+      "addRefImages": "参照画像を追加",
+      "refImagesEmpty": "参照画像はまだありません。追加すると生成時に自動で参照されます。",
+      "removeRefImage": "削除",
+      "refImageMax": "参照画像は最大 10 枚です",
+      "refImageSaved": "参照画像を保存しました",
+      "episodeLinks": "出演エピソード",
+      "episodeLinksHint": "チェックでエピソード間で参照（即時反映）",
+      "episodeN": "第 {n} 話",
+      "linked": "このエピソードに紐付けました",
+      "unlinked": "このエピソードから外しました"
     }
   },
   "settings": {
@@ -240,7 +351,8 @@
     "tabs": {
       "general": "一般",
       "ai": "AI サービス",
-      "styles": "スタイルプリセット",
+      "styles": "ビジュアルスタイル",
+      "packs": "脚本スタイル",
       "storage": "保存場所",
       "network": "公開アクセス",
       "about": "更新について",
@@ -305,7 +417,7 @@
       }
     },
     "styles": {
-      "title": "スタイルプリセット",
+      "title": "ビジュアルスタイル",
       "desc": "プロジェクト作成時に選ぶビジュアルスタイル。その英語プロンプト片はキャラクター図・シーン図の生成に自動注入されます。無効なスタイルは作成オプションに表示されません。",
       "allTitle": "すべてのスタイル",
       "count": "{active} 件有効 · 全 {total} 件",
@@ -432,6 +544,7 @@
       "extractor": "キャラクター・シーン抽出",
       "storyboardBreaker": "分镜分解",
       "promptGenerator": "プロンプト生成",
+      "episodeSplitter": "原作分割",
       "langFallback": "中国語にフォールバック",
       "followContentLang": "編集言語：{lang}（「一般 → AI コンテンツ言語」で切替）"
     },
@@ -519,6 +632,54 @@
       "title": "スタイルプリセットを削除",
       "message": "スタイル「{name}」を削除しますか？使用中のプロジェクトには影響しませんが、削除した組み込みスタイルは再起動で復元される場合があります。「無効化」の利用をおすすめします。"
     },
+    "packs": {
+      "title": "脚本スタイル",
+      "desc": "スタイルプリセットは工程ごとに管理されます。プロジェクトに紐付けると、原作分割・脚本リライト・素材抽出・絵コンテ・プロンプト生成の各 Agent が自分の担当分の指針だけを受け取り、流水線全体のスタイルが統一されます（ビジュアルスタイル＝画像プロンプト接頭辞とは独立）。",
+      "allTitle": "すべてのスタイルプリセット",
+      "count": "有効 {active} / 全 {total}",
+      "empty": "スタイルプリセットはまだありません",
+      "episodeSplit": "原作分割",
+      "script": "脚本リライト",
+      "extractor": "素材抽出",
+      "storyboard": "絵コンテ",
+      "prompt": "プロンプト生成"
+    },
+    "packDialog": {
+      "editTitle": "スタイルプリセットを編集",
+      "addTitle": "スタイルプリセットを追加",
+      "sub": "5 つの指針は 5 つの Agent のプロンプトにそれぞれ注入されます。1 つ以上の入力が必要です。先に AI 生成してから調整できます。",
+      "tag": "脚本",
+      "generateLabel": "AI 生成",
+      "generatePlaceholder": "スタイルを一文で。例：海外中世の復讐劇、吹き替え劇の口調",
+      "generateBtn": "生成",
+      "generateHint": "生成結果は下の 5 つの指針に反映されます。確認・調整後に保存してください。現在の AI サービス設定のテキストモデルを使用します。",
+      "generateRequired": "先にスタイルの説明を入力してください",
+      "generateDone": "生成しました。確認・調整後に保存してください",
+      "name": "プリセット名",
+      "namePlaceholder": "例：ハイテンポ・サスペンス・甘甘ラブ",
+      "key": "プリセット key",
+      "keyPlaceholder": "例：fast-paced、suspense（小文字英数字/ハイフン）",
+      "keyHint": "プロジェクトに保存されるプリセット識別子。作成後は変更できません。",
+      "script": "脚本リライト指針（セリフ + テンポ）",
+      "scriptPlaceholder": "例：短く力強いセリフ、1 文 15 字以内、冒頭 10 秒で対立へ",
+      "episodeSplit": "原作分割指針（分割）",
+      "episodeSplitPlaceholder": "例：分割粒度と脚色の取捨 — どんな筋立てを 1 話にするか、圧縮/削除する内容、フックの好み",
+      "extractor": "素材抽出指針",
+      "extractorPlaceholder": "例：素材の説明は客観的・簡潔に、手がかりになる細部は保持",
+      "storyboard": "絵コンテ指針",
+      "storyboardPlaceholder": "例：3-5 秒ごとにカット、ピークは寄り、長い空ショットは使わない",
+      "prompt": "プロンプト生成指針",
+      "promptPlaceholder": "例：動画プロンプトは動勢と速いカット重視、カメラワークは鋭く",
+      "description": "説明",
+      "descPlaceholder": "このパックが向いている題材を一言で",
+      "sort": "並び順",
+      "required": "名前と key は必須です",
+      "requiredGuide": "5 つの指針のいずれか 1 つ以上を入力してください"
+    },
+    "packDelete": {
+      "title": "スタイルプリセットを削除",
+      "message": "スタイルプリセット「{name}」を削除しますか？紐付け済みのプロジェクトでは指針の注入が止まるだけです（紐付けは保持）。ただし削除した組み込みプリセットは再起動で復元される場合があります。「無効化」の利用をおすすめします。"
+    },
     "skillDelete": {
       "title": "Skill を削除",
       "message": "Skill「{id}」を削除しますか？対応する Agent は組み込みのデフォルトプロンプトに戻ります。"
@@ -532,8 +693,7 @@
       "tasks": "タスク",
       "viewFilm": "完成映像を見る",
       "continue": "制作を続ける",
-      "start": "制作を開始",
-      "resolution": "解像度"
+      "start": "制作を開始"
     },
     "model": {
       "defaultWith": "デフォルト · {model}",
@@ -610,6 +770,23 @@
       "delChar": "キャラクターを削除",
       "delScene": "シーンを削除",
       "delProp": "小道具を削除",
+      "fromLibrary": "ライブラリから追加",
+      "unlink": "この話から外す",
+      "unlinkBtn": "この話から外す",
+      "unlinkTitle": "{type}を外す",
+      "unlinkMessage": "「{name}」をこの話から外しますか？素材自体は削除されず、他の話でも利用できます。",
+      "unlinkConfirm": "外す",
+      "unlinked": "{type}をこの話から外しました",
+      "linked": "「{name}」をこの話に紐付けました",
+      "libraryPickTitle": "{type}を追加",
+      "libraryPickEmpty": "追加できる素材がありません。他の話で抽出するかライブラリで追加してください",
+      "libraryPickHint": "クリックでこの話に紐付け。素材はプロジェクト内で共有され、変更は全話に反映されます。",
+      "refImages": "参照画像",
+      "addRefImages": "参照画像を追加",
+      "refImagesEmpty": "参照画像はまだありません。追加すると生成時に自動で参照されます。",
+      "removeRefImage": "削除",
+      "refImageMax": "参照画像は最大 10 枚です",
+      "refImageSaved": "参照画像を保存しました",
       "charImageTitle": "{name} キャラクターイメージ",
       "sceneImageTitle": "{name} シーン図",
       "propImageTitle": "{name} 小道具図",
@@ -822,7 +999,6 @@
       "genTimeout": "動画生成がタイムアウトしました",
       "allDone": "すべてのショット動画が生成済みです",
       "moderationHint": "実写人物/センシティブ内容の審査で拒否された可能性があります。上部バーで別の動画モデルに切り替えて再試行してください",
-      "resolutionSwitched": "このエピソードの動画解像度を {label} に変更しました",
       "noneToGenerate": "生成するショットがありません",
       "batchStarted": "{n} 件の動画生成タスクを開始しました",
       "retryFailed": "失敗を再試行({n})",
@@ -863,7 +1039,7 @@
       "noBoundRefs": "绑定された素材なし（中央の「参照素材」で绑定）"
     },
     "tasks": {
-      "title": "生成タスク一覧",
+      "title": "タスク",
       "meta": "作成日時の降順 · {n} 件のタスク",
       "emptyTitle": "生成タスクがありません",
       "emptyDesc": "資産、分镜、動画の各ステップで画像/動画生成を実行すると、タスクが自動でここに表示されます。",
@@ -879,7 +1055,7 @@
       "clear": "クリア",
       "clearConfirm": "終了したタスク記録 {n} 件をクリアしますか？実行中のタスクには影響せず、生成済みメディアファイルは保持されます。",
       "cleared": "{n} 件のタスク記録をクリアしました",
-      "retried": "生成タスクを再送信しました",
+      "retried": "生成再試行を開始しました",
       "actionProbe": "進行状況を確認",
       "probeCompleted": "上流が完了し、結果を保存しました",
       "probeFailed": "上流が失敗を返しました",
@@ -1010,10 +1186,24 @@
         "desc": "左でセクション切替：AI サービス、一般（UI と生成言語）、スタイルプリセット、Agent プロンプトとスキル、ストレージ、About。"
       }
     },
+    "detail": {
+      "welcome": {
+        "title": "👋 プロジェクトワークスペース",
+        "desc": "ここでは個別プロジェクトを管理します：原作とアウトライン、エピソードと素材。"
+      },
+      "tabs": {
+        "title": "4 つのセクション",
+        "desc": "原作（分割元）、アウトライン（各話フック）、エピソード（制作へ）、素材（キャラ/シーン/小物ライブラリ）。"
+      },
+      "actions": {
+        "title": "タスクと設定",
+        "desc": "タスク一覧に全生成タスクを集約。プロジェクト設定ではカバー・スタイル・言語・モデルを設定できます。"
+      }
+    },
     "episode": {
       "topbar": {
-        "title": "上部バー：モデルと状態",
-        "desc": "テキスト/画像/動画モデルをいつでも切替。解像度と尺はモデルに連動します。"
+        "title": "上部バー：タスクと設定",
+        "desc": "右側に更新・タスクドロワー・プロジェクト設定。生成モデルと言語は「プロジェクト設定」で統一管理します。"
       },
       "script": {
         "title": "ステップ 1 · 脚本",

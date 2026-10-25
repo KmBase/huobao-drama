@@ -5,6 +5,7 @@
 import { eq } from 'drizzle-orm'
 import { db, schema } from '../db/index.js'
 import { mastra } from '../mastra/index.js'
+import { getActiveConfig } from './ai.js'
 import { buildAgentRequestContext } from '../agents/context.js'
 import { logTaskError, logTaskProgress, logTaskStart, logTaskSuccess } from '../utils/task-logger.js'
 
@@ -39,13 +40,10 @@ export async function startVideoPromptBatch(
     : sbs.filter(sb => !(sb.videoPrompt || '').trim())
   if (!pending.length) return { started: false, total: 0 }
 
-  // 视频模型标签：跟随该集锁定的视频配置，供 Agent 按模型特性生成
-  const [ep] = await db.select().from(schema.episodes).where(eq(schema.episodes.id, episodeId))
+  // 视频配置标签：项目级配置由请求方（configId/model）决定，这里展示当前启用的默认视频配置
   let videoLabel = '默认'
-  if (ep?.videoConfigId) {
-    const [cfg] = await db.select().from(schema.aiServiceConfigs).where(eq(schema.aiServiceConfigs.id, ep.videoConfigId))
-    if (cfg) videoLabel = `${cfg.name} (${cfg.provider})`
-  }
+  const activeVideoConfig = await getActiveConfig('video')
+  if (activeVideoConfig) videoLabel = activeVideoConfig.provider
 
   const task: VideoPromptBatchStatus = {
     status: 'running',

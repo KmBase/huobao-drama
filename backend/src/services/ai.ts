@@ -170,18 +170,6 @@ export async function getTextConfig(): Promise<AIConfig> {
   return config
 }
 
-/**
- * 取某服务类型当前启用且优先级最高的配置 ID（创建集时自动锁定用）
- */
-export async function getActiveConfigId(serviceType: ServiceType): Promise<number | null> {
-  const rows = (await db.select().from(schema.aiServiceConfigs)
-    .where(eq(schema.aiServiceConfigs.serviceType, serviceType))
-  )
-    .filter(r => r.isActive && isKnownProtocol(serviceType, resolveProtocol(r.protocol, r.provider)))
-    .sort((a, b) => (b.priority || 0) - (a.priority || 0))
-  return rows[0]?.id ?? null
-}
-
 export async function getConfigById(id: number): Promise<AIConfig | null> {
   const [row] = await db.select().from(schema.aiServiceConfigs)
     .where(eq(schema.aiServiceConfigs.id, id))

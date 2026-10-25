@@ -227,6 +227,46 @@
           </section>
         </div>
 
+        <!-- ===== 叙事风格包 ===== -->
+        <div v-else-if="tab === 'packs'" class="settings-scroll">
+          <div class="settings-head">
+            <h2 class="settings-title">{{ t('settings.packs.title') }}</h2>
+            <p class="settings-desc">{{ t('settings.packs.desc') }}</p>
+          </div>
+          <section class="card svc-group">
+            <div class="svc-group-head">
+              <div class="svc-group-heading">
+                <span class="svc-group-title">{{ t('settings.packs.allTitle') }}</span>
+                <div class="svc-group-sub">{{ t('settings.packs.count', { active: stylePacks.filter(p => p.is_active).length, total: stylePacks.length }) }}</div>
+              </div>
+              <button class="btn btn-ghost btn-sm ml-auto" @click="startAddPack"><Plus :size="13" /> {{ t('common.add') }}</button>
+            </div>
+            <div v-for="p in stylePacks" :key="p.id" class="config-row">
+              <div class="provider-badge style-badge"><Clapperboard :size="15" /></div>
+              <div class="config-main">
+                <div class="config-line">
+                  <span class="config-name">{{ p.name }}</span>
+                  <span class="tag mono">{{ p.value }}</span>
+                  <span v-if="!p.is_active" class="tag">{{ t('settings.common.disabled') }}</span>
+                </div>
+                <div v-if="p.episode_split_guide" class="config-sub truncate">{{ t('settings.packs.episodeSplit') }}：{{ p.episode_split_guide }}</div>
+                <div v-if="p.script_guide" class="config-sub truncate">{{ t('settings.packs.script') }}：{{ p.script_guide }}</div>
+                <div v-if="p.extractor_guide" class="config-sub truncate">{{ t('settings.packs.extractor') }}：{{ p.extractor_guide }}</div>
+                <div v-if="p.storyboard_guide" class="config-sub truncate">{{ t('settings.packs.storyboard') }}：{{ p.storyboard_guide }}</div>
+                <div v-if="p.prompt_guide" class="config-sub truncate">{{ t('settings.packs.prompt') }}：{{ p.prompt_guide }}</div>
+                <div v-if="p.description" class="config-sub truncate">{{ p.description }}</div>
+              </div>
+              <label class="config-switch">
+                <input type="checkbox" class="sr-only" :checked="p.is_active" @change="togglePack(p)">
+                <span class="switch" :class="{ on: p.is_active }"></span>
+              </label>
+              <button class="btn btn-ghost btn-icon btn-sm" @click="startEditPack(p)"><Pencil :size="13" /></button>
+              <button class="btn btn-danger btn-icon btn-sm" @click="packToDelete = p"><Trash2 :size="13" /></button>
+            </div>
+            <p v-if="!stylePacks.length" class="config-empty">{{ t('settings.packs.empty') }}</p>
+          </section>
+        </div>
+
         <!-- ===== 存储位置 ===== -->
         <div v-else-if="tab === 'storage'" class="settings-scroll">
           <div class="settings-head">
@@ -810,6 +850,73 @@
         </div>
       </form>
     </div>
+    <!-- 叙事风格包编辑 -->
+    <div v-if="packDialog" class="overlay" @click.self="packDialog = false">
+      <form class="dialog" @submit.prevent="savePack">
+        <div class="dialog-head">
+          <div>
+            <div class="dialog-title">{{ packEditId ? t('settings.packDialog.editTitle') : t('settings.packDialog.addTitle') }}</div>
+            <div class="dialog-sub">{{ t('settings.packDialog.sub') }}</div>
+          </div>
+          <span class="tag tag-accent ml-auto"><Clapperboard :size="12" /> {{ t('settings.packDialog.tag') }}</span>
+        </div>
+        <div class="dialog-body config-dialog-body">
+          <div class="field">
+            <span class="field-label">{{ t('settings.packDialog.generateLabel') }}</span>
+            <div style="display:flex; gap:8px">
+              <input v-model="packGenDesc" class="input" style="flex:1" :placeholder="t('settings.packDialog.generatePlaceholder')" />
+              <button type="button" class="btn btn-primary btn-sm" :disabled="packGenerating" @click="generatePack">
+                <Loader2 v-if="packGenerating" :size="12" class="animate-spin" />
+                <Sparkles v-else :size="12" />
+                {{ t('settings.packDialog.generateBtn') }}
+              </button>
+            </div>
+            <span class="field-hint">{{ t('settings.packDialog.generateHint') }}</span>
+          </div>
+          <label class="field">
+            <span class="field-label">{{ t('settings.packDialog.name') }} <span class="required">*</span></span>
+            <input v-model="packForm.name" class="input" :placeholder="t('settings.packDialog.namePlaceholder')" />
+          </label>
+          <label class="field">
+            <span class="field-label">{{ t('settings.packDialog.key') }} <span class="required">*</span></span>
+            <input v-model="packForm.value" class="input mono" :placeholder="t('settings.packDialog.keyPlaceholder')" :disabled="!!packEditId" />
+            <span class="field-hint">{{ t('settings.packDialog.keyHint') }}</span>
+          </label>
+          <label class="field">
+            <span class="field-label">{{ t('settings.packDialog.episodeSplit') }}</span>
+            <textarea v-model="packForm.episode_split_guide" class="textarea" rows="2" :placeholder="t('settings.packDialog.episodeSplitPlaceholder')"></textarea>
+          </label>
+          <label class="field">
+            <span class="field-label">{{ t('settings.packDialog.script') }}</span>
+            <textarea v-model="packForm.script_guide" class="textarea" rows="3" :placeholder="t('settings.packDialog.scriptPlaceholder')"></textarea>
+          </label>
+          <label class="field">
+            <span class="field-label">{{ t('settings.packDialog.extractor') }}</span>
+            <textarea v-model="packForm.extractor_guide" class="textarea" rows="2" :placeholder="t('settings.packDialog.extractorPlaceholder')"></textarea>
+          </label>
+          <label class="field">
+            <span class="field-label">{{ t('settings.packDialog.storyboard') }}</span>
+            <textarea v-model="packForm.storyboard_guide" class="textarea" rows="2" :placeholder="t('settings.packDialog.storyboardPlaceholder')"></textarea>
+          </label>
+          <label class="field">
+            <span class="field-label">{{ t('settings.packDialog.prompt') }}</span>
+            <textarea v-model="packForm.prompt_guide" class="textarea" rows="2" :placeholder="t('settings.packDialog.promptPlaceholder')"></textarea>
+          </label>
+          <label class="field">
+            <span class="field-label">{{ t('settings.packDialog.description') }}</span>
+            <input v-model="packForm.description" class="input" :placeholder="t('settings.packDialog.descPlaceholder')" />
+          </label>
+          <label class="field">
+            <span class="field-label">{{ t('settings.packDialog.sort') }}</span>
+            <input v-model.number="packForm.sort_order" class="input" type="number" min="0" max="999" />
+          </label>
+        </div>
+        <div class="dialog-foot">
+          <button type="button" class="btn" @click="packDialog = false">{{ t('common.cancel') }}</button>
+          <button type="submit" class="btn btn-primary">{{ t('common.save') }}</button>
+        </div>
+      </form>
+    </div>
     <!-- 迁移确认（自建 dialog：ConfirmDialog 的删除语义/Enter 快捷键不合此处） -->
     <div v-if="migrateDialog" class="overlay" @click.self="!migrating && (migrateDialog = false)">
       <form class="dialog" @submit.prevent="startMigrate">
@@ -850,6 +957,14 @@
       @cancel="styleToDelete = null"
     />
     <ConfirmDialog
+      :open="!!packToDelete"
+      :title="t('settings.packDelete.title')"
+      :message="t('settings.packDelete.message', { name: packToDelete?.name })"
+      :loading="deletingPack"
+      @confirm="confirmDelPack"
+      @cancel="packToDelete = null"
+    />
+    <ConfirmDialog
       :open="!!skillToDelete"
       :title="t('settings.skillDelete.title')"
       :message="t('settings.skillDelete.message', { id: skillToDelete })"
@@ -861,12 +976,12 @@
 </template>
 
 <script setup>
-import { Plus, Pencil, Trash2, FileText, ChevronDown, Check, Loader2, Bot, Cpu, Sparkles, Palette, ExternalLink, Star, HardDrive, Database, RefreshCw, Download, Languages, SunMoon, X, ArrowUp, ArrowDown, Globe, Radio, Waypoints, KeyRound, Gauge, Rocket, Lock } from 'lucide-vue-next'
+import { Plus, Pencil, Trash2, FileText, ChevronDown, Check, Loader2, Bot, Cpu, Sparkles, Palette, Clapperboard, ExternalLink, Star, HardDrive, Database, RefreshCw, Download, Languages, SunMoon, X, ArrowUp, ArrowDown, Globe, Radio, Waypoints, KeyRound, Gauge, Rocket, Lock } from 'lucide-vue-next'
 import BaseSelect from '~/components/BaseSelect.vue'
 import { toast } from 'vue-sonner'
 import { toastError } from '~/composables/useToast'
 import { useI18n } from 'vue-i18n'
-import { aiConfigAPI, aiProvidersAPI, promptAPI, skillsAPI, storageAPI, stylePresetAPI, settingsAPI, serverUpdateAPI, accessAPI } from '~/composables/useApi'
+import { aiConfigAPI, aiProvidersAPI, promptAPI, skillsAPI, storageAPI, stylePresetAPI, stylePackAPI, settingsAPI, serverUpdateAPI, accessAPI } from '~/composables/useApi'
 import { useDesktopBridge } from '~/composables/useDesktopBridge'
 import { useMigrateState } from '~/composables/useMigrateState'
 import { useTheme } from '~/composables/useTheme'
@@ -882,6 +997,7 @@ const baseTabs = computed(() => [
   { id: 'ai', label: t('settings.tabs.ai'), icon: Cpu },
   { id: 'general', label: t('settings.tabs.general'), icon: Languages },
   { id: 'styles', label: t('settings.tabs.styles'), icon: Palette },
+  { id: 'packs', label: t('settings.tabs.packs'), icon: Clapperboard },
   { id: 'agents', label: t('settings.tabs.agents'), icon: Bot },
   { id: 'storage', label: t('settings.tabs.storage'), icon: HardDrive },
   { id: 'network', label: t('settings.tabs.network'), icon: Globe },
@@ -1175,6 +1291,7 @@ const agentSaved = ref(null)
 const agentForm = reactive({ system_prompt: '' })
 
 const agentDefs = computed(() => [
+  { type: 'episode_splitter', label: t('settings.agents.episodeSplitter'), icon: '📖' },
   { type: 'script_rewriter', label: t('settings.agents.scriptRewriter'), icon: '📝' },
   { type: 'extractor', label: t('settings.agents.extractor'), icon: '🔍' },
   { type: 'storyboard_breaker', label: t('settings.agents.storyboardBreaker'), icon: '🎬' },
@@ -1466,7 +1583,123 @@ async function saveStyle() {
   } catch (e) { toastError(e) }
 }
 
-onMounted(() => { loadCatalog(); loadCfgs(); loadAgents(); loadAllSkills(); loadAgentPrompt(selectedAgent.value); loadStylePresets() })
+// ===== 剧本风格包 =====
+const stylePacks = ref([])
+const packDialog = ref(false)
+const packEditId = ref(null)
+const packForm = reactive({ name: '', value: '', episode_split_guide: '', script_guide: '', extractor_guide: '', storyboard_guide: '', prompt_guide: '', description: '', sort_order: 0 })
+const packGenDesc = ref('')
+const packGenerating = ref(false)
+
+async function generatePack() {
+  if (!packGenDesc.value.trim()) {
+    toast.warning(t('settings.packDialog.generateRequired'))
+    return
+  }
+  try {
+    packGenerating.value = true
+    const res = await stylePackAPI.generate(packGenDesc.value.trim())
+    if (res.name) packForm.name = res.name
+    packForm.episode_split_guide = res.episode_split_guide || ''
+    packForm.script_guide = res.script_guide || ''
+    packForm.extractor_guide = res.extractor_guide || ''
+    packForm.storyboard_guide = res.storyboard_guide || ''
+    packForm.prompt_guide = res.prompt_guide || ''
+    if (!packForm.description) packForm.description = packGenDesc.value.trim()
+    toast.success(t('settings.packDialog.generateDone'))
+  } catch (e) { toastError(e) } finally {
+    packGenerating.value = false
+  }
+}
+
+async function loadStylePacks() {
+  try { stylePacks.value = await stylePackAPI.list(true) } catch (e) { toastError(e) }
+}
+
+async function togglePack(p) {
+  try {
+    await stylePackAPI.update(p.id, { is_active: !p.is_active })
+    loadStylePacks()
+  } catch (e) { toastError(e) }
+}
+
+const packToDelete = ref(null)
+const deletingPack = ref(false)
+
+async function confirmDelPack() {
+  const p = packToDelete.value
+  if (!p) return
+  try {
+    deletingPack.value = true
+    await stylePackAPI.del(p.id)
+    packToDelete.value = null
+    toast.success(t('index.deleted'))
+    loadStylePacks()
+  } catch (e) {
+    toastError(e)
+  } finally {
+    deletingPack.value = false
+  }
+}
+
+function startAddPack() {
+  packEditId.value = null
+  Object.assign(packForm, {
+    name: '', value: '', episode_split_guide: '', script_guide: '', extractor_guide: '', storyboard_guide: '', prompt_guide: '', description: '',
+    sort_order: (stylePacks.value.at(-1)?.sort_order ?? 0) + 1,
+  })
+  packGenDesc.value = ''
+  packDialog.value = true
+}
+
+function startEditPack(p) {
+  packEditId.value = p.id
+  Object.assign(packForm, {
+    name: p.name,
+    value: p.value,
+    script_guide: p.script_guide || '',
+    episode_split_guide: p.episode_split_guide || '',
+    extractor_guide: p.extractor_guide || '',
+    storyboard_guide: p.storyboard_guide || '',
+    prompt_guide: p.prompt_guide || '',
+    description: p.description || '',
+    sort_order: p.sort_order ?? 0,
+  })
+  packGenDesc.value = ''
+  packDialog.value = true
+}
+
+async function savePack() {
+  if (!packForm.name?.trim() || (!packEditId.value && !packForm.value?.trim())) {
+    toast.warning(t('settings.packDialog.required'))
+    return
+  }
+  if (!packForm.episode_split_guide?.trim() && !packForm.script_guide?.trim() && !packForm.extractor_guide?.trim() && !packForm.storyboard_guide?.trim() && !packForm.prompt_guide?.trim()) {
+    toast.warning(t('settings.packDialog.requiredGuide'))
+    return
+  }
+  try {
+    if (packEditId.value) {
+      await stylePackAPI.update(packEditId.value, {
+        name: packForm.name,
+        episode_split_guide: packForm.episode_split_guide,
+        script_guide: packForm.script_guide,
+        extractor_guide: packForm.extractor_guide,
+        storyboard_guide: packForm.storyboard_guide,
+        prompt_guide: packForm.prompt_guide,
+        description: packForm.description,
+        sort_order: packForm.sort_order,
+      })
+    } else {
+      await stylePackAPI.create({ ...packForm })
+    }
+    packDialog.value = false
+    toast.success(t('common.saved'))
+    loadStylePacks()
+  } catch (e) { toastError(e) }
+}
+
+onMounted(() => { loadCatalog(); loadCfgs(); loadAgents(); loadAllSkills(); loadAgentPrompt(selectedAgent.value); loadStylePresets(); loadStylePacks() })
 
 // ===== 应用内引导（设置页）：快捷配置 + 手动模板两步 =====
 const SETTINGS_TOUR = [

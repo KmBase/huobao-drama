@@ -11,7 +11,18 @@ export const dramas = sqliteTable('dramas', {
   description: text('description'),
   genre: text('genre'),
   style: text('style').default('3d'),
+  stylePack: text('style_pack'),
+  /** 原著全文（项目级），AI 分集的切分来源 */
+  sourceContent: text('source_content'),
+  /** 项目级模型覆盖（'provider/model' 复合键），空 = 跟随 AI 配置默认 */
+  modelChat: text('model_chat'),
+  modelImage: text('model_image'),
+  modelVideo: text('model_video'),
+  /** 项目级 AI 内容语言（zh/en/ja/ko），空 = 跟随全局设置 */
+  language: text('language'),
   aspectRatio: text('aspect_ratio').default('16:9'),
+  /** 项目级视频分辨率（480p/720p/1080p），各集继承；旧的 episodes.resolution 已废弃 */
+  resolution: text('resolution').default('720p'),
   totalEpisodes: integer('total_episodes').default(1),
   totalDuration: integer('total_duration').default(0),
   status: text('status').notNull().default('draft'),
@@ -31,6 +42,10 @@ export const episodes = sqliteTable('episodes', {
   content: text('content'),
   scriptContent: text('script_content'),
   description: text('description'),
+  /** AI 分集产出：本集概要 */
+  summary: text('summary'),
+  /** AI 分集产出：本集结尾钩子设计 */
+  hook: text('hook'),
   duration: integer('duration').default(0),
   status: text('status').default('draft'),
   videoUrl: text('video_url'),
@@ -99,6 +114,7 @@ export const scenes = sqliteTable('scenes', {
   storyboardCount: integer('storyboard_count').default(1),
   imageUrl: text('image_url'),
   status: text('status').default('pending'),
+  referenceImages: text('reference_images'),
   localPath: text('local_path'),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
@@ -199,6 +215,27 @@ export const stylePresets = sqliteTable('style_presets', {
   // 注意: 此表无 deleted_at（硬删除），value 列有唯一索引（见 sqlite-schema.ts DDL）
 })
 
+// 叙事风格包 — 按 agent 分段的工作流指导（大模型可一键生成），dramas.style_pack 存 value
+export const stylePacks = sqliteTable('style_packs', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  name: text('name').notNull(),
+  value: text('value').notNull(),
+  scriptGuide: text('script_guide'),
+  episodeSplitGuide: text('episode_split_guide'),
+  extractorGuide: text('extractor_guide'),
+  storyboardGuide: text('storyboard_guide'),
+  promptGuide: text('prompt_guide'),
+  /** @deprecated 旧版三段指导（对白/节奏/分镜），仅作四列回填来源保留 */
+  dialogueGuide: text('dialogue_guide'),
+  /** @deprecated 旧版三段指导，仅作回填来源保留 */
+  pacingGuide: text('pacing_guide'),
+  description: text('description'),
+  sortOrder: integer('sort_order').default(0),
+  isActive: integer('is_active', { mode: 'boolean' }).default(true),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
 // 统一生成任务表：图片/视频生成共用，type 区分，生成参数存 params(JSON)
 export const sysTask = sqliteTable('sys_task', {
   id: integer('id').primaryKey({ autoIncrement: true }),
@@ -220,6 +257,8 @@ export const sysTask = sqliteTable('sys_task', {
   localPath: text('local_path'),
   status: text('status').default('processing'),
   errorMsg: text('error_msg'),
+  // 终态结果 JSON（episode_split：{episodes:[...]}）；image/video 结果走 resultUrl/localPath
+  result: text('result'),
   // 生命周期进度 JSON：{stage, attempts, lastPollAt, detail}（轮询循环/主动查询时更新）
   progress: text('progress'),
   createdAt: text('created_at').notNull(),

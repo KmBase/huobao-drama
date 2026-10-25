@@ -39,6 +39,9 @@ app.post('/', async (c) => {
   return created(c, toSnakeCase(row))
 })
 
+/** 参考图归一化工具（scenes / props 路由同样使用） */
+import { normalizeRefImages, storedRefImages, refImagesForUpdate } from '../utils/ref-images.js'
+
 function characterImagePrompt(char: typeof schema.characters.$inferSelect, stylePrompt = '') {
   return [
     stylePrompt || '',
@@ -66,6 +69,10 @@ app.put('/:id', async (c) => {
   // 手动编辑最终提示词时以传入值为准；未传入则保留原值（修改信息时不再自动置空）
   if (body.final_prompt !== undefined) updates.finalPrompt = body.final_prompt || null
   else if (body.finalPrompt !== undefined) updates.finalPrompt = body.finalPrompt || null
+  // 参考图列表（数组=覆盖，空数组=清空）；兼容传入已序列化的 JSON 字符串
+  if (body.reference_images !== undefined) {
+    updates.referenceImages = refImagesForUpdate(body.reference_images)
+  }
   await db.update(schema.characters).set(updates).where(eq(schema.characters.id, id))
   return success(c)
 })
@@ -91,9 +98,16 @@ app.post('/:id/generate-image', async (c) => {
   const stylePrompt = await getDramaStylePrompt(char.dramaId)
   const finalPrompt = await ensureCharacterFinalPrompt(char, ep.id, false, { model: body.text_model, configId: body.text_config_id ?? undefined })
   const prompt = finalPrompt || characterImagePrompt(char, stylePrompt)
+  // 参考图：body 显式传入优先（并持久化，供下次生图默认复用），否则沿用资产已存列表
+  const hasExplicitRefs = Array.isArray(body.reference_images)
+  const refImages = hasExplicitRefs ? normalizeRefImages(body.reference_images) : storedRefImages(char.referenceImages)
+  if (hasExplicitRefs) {
+    await db.update(schema.characters).set({ referenceImages: refImages.length ? JSON.stringify(refImages) : null, updatedAt: now() })
+      .where(eq(schema.characters.id, id))
+  }
   try {
-    logTaskStart('CharacterImage', 'generate', { characterId: id, episodeId: ep.id, dramaId: char.dramaId })
-    const genId = await generateImage({ characterId: id, dramaId: char.dramaId, prompt, model: body.model, size: CHARACTER_IMAGE_SIZE, configId: body.config_id ?? ep.imageConfigId ?? undefined })
+    logTaskStart('CharacterImage', 'generate', { characterId: id, episodeId: ep.id, dramaId: char.dramaId, refImages: refImages.length })
+    const genId = await generateImage({ characterId: id, dramaId: char.dramaId, prompt, model: body.model, size: CHARACTER_IMAGE_SIZE, referenceImages: refImages.length ? refImages : undefined, configId: body.config_id ?? undefined })
     logTaskSuccess('CharacterImage', 'generate', { characterId: id, generationId: genId })
     return success(c, { image_generation_id: genId })
   } catch (err: any) {
@@ -137,8 +151,9 @@ app.post('/batch-generate-images', async (c) => {
     if (!char) continue
     const finalPrompt = await ensureCharacterFinalPrompt(char, ep.id, false, { model: body.text_model, configId: body.text_config_id ?? undefined })
     const prompt = finalPrompt || characterImagePrompt(char, stylePrompt)
+    const refImages = storedRefImages(char.referenceImages)
     try {
-      const genId = await generateImage({ characterId: cid, dramaId: char.dramaId, prompt, model: body.model, size: CHARACTER_IMAGE_SIZE, configId: body.config_id ?? ep.imageConfigId ?? undefined })
+      const genId = await generateImage({ characterId: cid, dramaId: char.dramaId, prompt, model: body.model, size: CHARACTER_IMAGE_SIZE, referenceImages: refImages.length ? refImages : undefined, configId: body.config_id ?? undefined })
       results.push(genId)
     } catch {}
   }

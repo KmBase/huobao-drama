@@ -39,6 +39,16 @@ export async function setContentLanguage(lang: ContentLanguage): Promise<Content
   return lang
 }
 
+/**
+ * 项目级内容语言：dramas.language，未设置或值非法返回 null（调用方回退全局设置）。
+ * 层次：项目覆盖 > 全局 content_language > 'zh'
+ */
+export async function getDramaContentLanguage(dramaId: number): Promise<ContentLanguage | null> {
+  const [row] = await db.select({ language: schema.dramas.language }).from(schema.dramas)
+    .where(eq(schema.dramas.id, dramaId))
+  return isContentLanguage(row?.language) ? row.language : null
+}
+
 // ---- 公网媒体地址（内网穿透 / 反代，供 URL-only 协议的上游回源本地静态文件） ----
 
 const PUBLIC_MEDIA_BASE_URL_KEY = 'public_media_base_url'

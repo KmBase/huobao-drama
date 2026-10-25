@@ -7,6 +7,7 @@ import { generateImage } from '../services/generation.js'
 import { getDramaStylePrompt } from '../services/style-preset.js'
 import { ensurePropFinalPrompt } from '../services/final-prompt.js'
 import { logTaskError, logTaskStart, logTaskSuccess } from '../utils/task-logger.js'
+import { normalizeRefImages, storedRefImages, refImagesForUpdate } from '../utils/ref-images.js'
 
 const app = new Hono()
 // 道具图：白底单品静物，方形画布
@@ -61,6 +62,10 @@ app.put('/:id', async (c) => {
   // 手动编辑最终提示词时以传入值为准；未传入则保留原值（修改信息时不再自动置空）
   if (body.final_prompt !== undefined) updates.finalPrompt = body.final_prompt || null
   else if (body.finalPrompt !== undefined) updates.finalPrompt = body.finalPrompt || null
+  // 参考图列表（数组=覆盖，空数组=清空）；兼容传入已序列化的 JSON 字符串
+  if (body.reference_images !== undefined) {
+    updates.referenceImages = refImagesForUpdate(body.reference_images)
+  }
   await db.update(schema.props).set(updates).where(eq(schema.props.id, id))
   return success(c)
 })
@@ -115,8 +120,15 @@ app.post('/:id/generate-image', async (c) => {
   const finalPrompt = await ensurePropFinalPrompt(prop, ep.id, false, { model: body.text_model, configId: body.text_config_id ?? undefined })
   const prompt = finalPrompt || propImagePrompt(prop, stylePrompt)
   try {
-    logTaskStart('PropImage', 'generate', { propId: id, episodeId: ep.id, dramaId: prop.dramaId })
-    const genId = await generateImage({ propId: id, dramaId: prop.dramaId, prompt, model: body.model, size: PROP_IMAGE_SIZE, configId: body.config_id ?? ep.imageConfigId ?? undefined })
+    // 参考图：body 显式传入优先（并持久化，供下次生图默认复用），否则沿用资产已存列表
+    const hasExplicitRefs = Array.isArray(body.reference_images)
+    const refImages = hasExplicitRefs ? normalizeRefImages(body.reference_images) : storedRefImages(prop.referenceImages)
+    if (hasExplicitRefs) {
+      await db.update(schema.props).set({ referenceImages: refImages.length ? JSON.stringify(refImages) : null, updatedAt: now() })
+        .where(eq(schema.props.id, id))
+    }
+    logTaskStart('PropImage', 'generate', { propId: id, episodeId: ep.id, dramaId: prop.dramaId, refImages: refImages.length })
+    const genId = await generateImage({ propId: id, dramaId: prop.dramaId, prompt, model: body.model, size: PROP_IMAGE_SIZE, referenceImages: refImages.length ? refImages : undefined, configId: body.config_id ?? undefined })
     logTaskSuccess('PropImage', 'generate', { propId: id, generationId: genId })
     return success(c, { image_generation_id: genId })
   } catch (err: any) {

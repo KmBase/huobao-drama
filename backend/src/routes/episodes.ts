@@ -3,9 +3,9 @@ import { and, eq, isNull } from 'drizzle-orm'
 import { db, getInsertId, schema } from '../db/index.js'
 import { success, notFound, badRequest, now } from '../utils/response.js'
 import { toSnakeCaseArray, toSnakeCase } from '../utils/transform.js'
-import { getActiveConfigId } from '../services/ai.js'
 import { EXTRACT_TARGETS, getExtractionStatus, startExtraction, type ExtractTarget } from '../services/extraction.js'
 import { getVideoPromptBatchStatus, startVideoPromptBatch } from '../services/video-prompts.js'
+import { syncOutlineFile } from '../services/outline.js'
 
 const app = new Hono()
 
@@ -14,11 +14,7 @@ app.post('/', async (c) => {
   const body = await c.req.json()
   if (!body.drama_id) return badRequest(c, 'drama_id 必填')
 
-  // 图片/视频配置：显式传入优先，缺省时自动锁定当前启用的最高优先级官方配置
-  const imageConfigId = body.image_config_id ?? await getActiveConfigId('image')
-  const videoConfigId = body.video_config_id ?? await getActiveConfigId('video')
-  if (!imageConfigId) return badRequest(c, '未找到启用的图片生成配置，请先在设置中心添加')
-  if (!videoConfigId) return badRequest(c, '未找到启用的视频生成配置，请先在设置中心添加')
+  // 生成配置只在项目级维护（dramas.model_*），剧集继承项目配置，不再按集锁定
   const ts = now()
 
   // Get next episode number（忽略已软删的集，删除中间集后新集号可复用空位之后的最大值）
@@ -31,10 +27,6 @@ app.post('/', async (c) => {
     dramaId: body.drama_id,
     episodeNumber: nextNum,
     title: body.title || `第${nextNum}集`,
-    imageConfigId,
-    videoConfigId,
-    // 视频分辨率在创建集时固定（480p/720p/1080p），后续可通过 PUT 修改；各视频适配器再映射为厂商档位
-    resolution: ['480p', '720p', '1080p'].includes(body.resolution) ? body.resolution : '720p',
     createdAt: ts,
     updatedAt: ts,
   })
@@ -45,9 +37,6 @@ app.post('/', async (c) => {
     id: ep.id,
     episode_number: ep.episodeNumber,
     title: ep.title,
-    image_config_id: ep.imageConfigId,
-    video_config_id: ep.videoConfigId,
-    resolution: ep.resolution,
   })
 })
 
@@ -56,15 +45,13 @@ app.put('/:id', async (c) => {
   const id = Number(c.req.param('id'))
   const body = await c.req.json()
 
-  const allowed = ['content', 'script_content', 'title', 'description', 'status', 'resolution']
+  // resolution 已收敛为项目级配置（dramas.resolution），剧集不再单独维护
+  const allowed = ['content', 'script_content', 'title', 'description', 'status']
   const updates: Record<string, any> = {}
   for (const key of allowed) {
     if (key in body) updates[key] = body[key]
   }
   if (Object.keys(updates).length === 0) return badRequest(c, '没有可更新的字段')
-  if ('resolution' in updates && !['480p', '720p', '1080p'].includes(updates.resolution)) {
-    return badRequest(c, 'resolution 只支持 480p / 720p / 1080p')
-  }
 
   // Map snake_case to camelCase for drizzle
   const drizzleUpdates: Record<string, any> = { updatedAt: now() }
@@ -73,7 +60,6 @@ app.put('/:id', async (c) => {
   if ('title' in updates) drizzleUpdates.title = updates.title
   if ('description' in updates) drizzleUpdates.description = updates.description
   if ('status' in updates) drizzleUpdates.status = updates.status
-  if ('resolution' in updates) drizzleUpdates.resolution = updates.resolution
 
   await db.update(schema.episodes).set(drizzleUpdates).where(eq(schema.episodes.id, id))
   return success(c)
@@ -86,6 +72,8 @@ app.delete('/:id', async (c) => {
   if (!ep) return notFound(c, '剧集不存在')
   await db.update(schema.episodes).set({ deletedAt: now(), updatedAt: now() })
     .where(eq(schema.episodes.id, id))
+  // 剧集增删影响全集钩子链，重建大纲 md（失败不阻断删除）
+  try { await syncOutlineFile(ep.dramaId) } catch (err) { console.error('[outline] 重建大纲失败:', (err as Error).message) }
   return success(c)
 })
 
@@ -123,6 +111,81 @@ app.get('/:id/props', async (c) => {
   const allProps = await db.select().from(schema.props)
   const result = allProps.filter(p => propIds.includes(p.id) && !p.deletedAt)
   return success(c, toSnakeCaseArray(result))
+})
+
+// POST /episodes/:id/characters — 把项目已有角色挂接到本集（跨集复用素材）
+app.post('/:id/characters', async (c) => {
+  const id = Number(c.req.param('id'))
+  const body = await c.req.json()
+  const characterId = Number(body.character_id)
+  if (!characterId) return badRequest(c, 'character_id 必填')
+  const [ep] = await db.select().from(schema.episodes).where(eq(schema.episodes.id, id))
+  if (!ep) return notFound(c, '剧集不存在')
+  const existing = await db.select().from(schema.episodeCharacters)
+    .where(and(eq(schema.episodeCharacters.episodeId, id), eq(schema.episodeCharacters.characterId, characterId)))
+  if (!existing.length) {
+    await db.insert(schema.episodeCharacters).values({ episodeId: id, characterId, createdAt: now() })
+  }
+  return success(c)
+})
+
+// DELETE /episodes/:id/characters/:characterId — 把角色移出本集（不删资产本身，其他集仍可用）
+app.delete('/:id/characters/:characterId', async (c) => {
+  const id = Number(c.req.param('id'))
+  const characterId = Number(c.req.param('characterId'))
+  await db.delete(schema.episodeCharacters)
+    .where(and(eq(schema.episodeCharacters.episodeId, id), eq(schema.episodeCharacters.characterId, characterId)))
+  return success(c)
+})
+
+// POST /episodes/:id/scenes — 把项目已有场景挂接到本集
+app.post('/:id/scenes', async (c) => {
+  const id = Number(c.req.param('id'))
+  const body = await c.req.json()
+  const sceneId = Number(body.scene_id)
+  if (!sceneId) return badRequest(c, 'scene_id 必填')
+  const [ep] = await db.select().from(schema.episodes).where(eq(schema.episodes.id, id))
+  if (!ep) return notFound(c, '剧集不存在')
+  const existing = await db.select().from(schema.episodeScenes)
+    .where(and(eq(schema.episodeScenes.episodeId, id), eq(schema.episodeScenes.sceneId, sceneId)))
+  if (!existing.length) {
+    await db.insert(schema.episodeScenes).values({ episodeId: id, sceneId, createdAt: now() })
+  }
+  return success(c)
+})
+
+// DELETE /episodes/:id/scenes/:sceneId — 把场景移出本集（不删资产本身）
+app.delete('/:id/scenes/:sceneId', async (c) => {
+  const id = Number(c.req.param('id'))
+  const sceneId = Number(c.req.param('sceneId'))
+  await db.delete(schema.episodeScenes)
+    .where(and(eq(schema.episodeScenes.episodeId, id), eq(schema.episodeScenes.sceneId, sceneId)))
+  return success(c)
+})
+
+// POST /episodes/:id/props — 把项目已有道具挂接到本集
+app.post('/:id/props', async (c) => {
+  const id = Number(c.req.param('id'))
+  const body = await c.req.json()
+  const propId = Number(body.prop_id)
+  if (!propId) return badRequest(c, 'prop_id 必填')
+  const [ep] = await db.select().from(schema.episodes).where(eq(schema.episodes.id, id))
+  if (!ep) return notFound(c, '剧集不存在')
+  const existing = await db.select().from(schema.episodeProps)
+    .where(and(eq(schema.episodeProps.episodeId, id), eq(schema.episodeProps.propId, propId)))
+  if (!existing.length) {
+    await db.insert(schema.episodeProps).values({ episodeId: id, propId, createdAt: now() })
+  }
+  return success(c)
+})
+
+// DELETE /episodes/:id/props/:propId — 把道具移出本集（不删资产本身）
+app.delete('/:id/props/:propId', async (c) => {
+  const id = Number(c.req.param('id'))
+  const propId = Number(c.req.param('propId'))
+  await db.delete(schema.episodeProps)
+    .where(and(eq(schema.episodeProps.episodeId, id), eq(schema.episodeProps.propId, propId)))
+  return success(c)
 })
 
 // POST /episodes/:id/extract — 异步提取资产（target: characters | scenes | props），立即返回，前端轮询状态
