@@ -15,6 +15,7 @@ import tasks from './routes/tasks.js'
 import upload from './routes/upload.js'
 import aiConfigs, { aiProviders } from './routes/aiConfigs.js'
 import stylePresets from './routes/stylePresets.js'
+import stylePacks from './routes/stylePacks.js'
 import prompts from './routes/prompts.js'
 import agent from './routes/agent.js'
 import merge from './routes/merge.js'
@@ -26,14 +27,12 @@ import capabilities from './routes/capabilities.js'
 import storage from './routes/storage.js'
 import serverUpdate from './routes/serverUpdate.js'
 import { requestLogger, errorHandler } from './middleware/logger.js'
-import { db, schema, affectedRows } from './db/index.js'
-import { eq } from 'drizzle-orm'
 import { getCookie } from 'hono/cookie'
-import { now } from './utils/response.js'
 import { DATA_ROOT } from './utils/paths.js'
 import { IS_SERVERLESS } from './utils/runtime-mode.js'
 import { blobUrlFor } from './utils/storage.js'
-import { hasAccessPassword, isTokenValid, ACCESS_COOKIE } from './services/access-auth.js'
+import { hasAccessPassword, isTokenValid, isMediaTokenValid, ACCESS_COOKIE, ensureInitialAccessPassword } from './services/access-auth.js'
+import { recoverInterruptedTasks } from './services/generation.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const projectRoot = path.resolve(__dirname, '../..')
@@ -66,11 +65,15 @@ app.use('/api/*', async (c, next) => {
   if (await isTokenValid(token)) return next()
   return c.json({ code: 401, message: 'UNAUTHORIZED' }, 401)
 })
+// /static/* 额外接受 ?token= 里的媒体令牌（仅放行静态媒体、不能调 API）：
+// 生图/生视频把带令牌的公网媒体 URL 提交给上游（Agnes 等），上游回源下载参考图/首尾帧才不会被 401 拦住
 app.use('/static/*', async (c, next) => {
   if (!(await hasAccessPassword())) return next()
   const token = getCookie(c, ACCESS_COOKIE) || c.req.header('x-access-token')
-    || new URL(c.req.url).searchParams.get('token') || undefined
+  const queryToken = new URL(c.req.url).searchParams.get('token') || undefined
   if (await isTokenValid(token)) return next()
+  if (await isTokenValid(queryToken)) return next()
+  if (await isMediaTokenValid(queryToken)) return next()
   return c.json({ code: 401, message: 'UNAUTHORIZED' }, 401)
 })
 
@@ -86,6 +89,7 @@ api.route('/upload', upload)
 api.route('/ai-configs', aiConfigs)
 api.route('/ai-providers', aiProviders)
 api.route('/style-presets', stylePresets)
+api.route('/style-packs', stylePacks)
 api.route('/prompts', prompts)
 api.route('/agent', agent)
 api.route('/merge', merge)
@@ -132,23 +136,28 @@ app.get('*', serveStatic({ root: distPath, path: 'index.html' }))
  * - Serverless（Vercel）：deploy/vercel/api/[[...route]].ts 经 hono/vercel 挂载本文件导出的 app，
  *   serve() 与启动清理仅在 Node 常驻形态执行
  */
+
+// 初始访问密码（HUOBAO_ACCESS_PASSWORD）：仅在数据库从未设过密码时生效，之后在设置页维护
+ensureInitialAccessPassword()
+  .then(seeded => { if (seeded) console.log('🔐 已从环境变量初始化访问密码') })
+  .catch(err => console.error('初始访问密码设置失败:', err?.message))
+
 export default app
 
 if (!process.env.VERCEL) {
   const port = Number(process.env.PORT || 5679)
   console.log(`🚀 Huobao Drama TS server on http://localhost:${port}`)
 
-  // 进程重启后内存中的轮询线程全部丢失,残留的 processing 任务永远不会完成,
-  // 启动时统一标记为 failed,避免前端一直显示"生成中"
+  // 进程重启后内存中的轮询线程全部丢失。交给 generation 恢复：
+  // 无上游 taskId（提交期中断）→ 标 failed；有 taskId → 恢复 processing 并续跑轮询，
+  // 上游已完成的直接补下载回写，不重新提交、不重复计费。
   // （serverless 无"重启"语义，任务续跑由 /tasks/sweep cron 驱动）
-  db.update(schema.sysTask)
-    .set({ status: 'failed', errorMsg: '服务重启，生成任务中断，请重试', updatedAt: now() })
-    .where(eq(schema.sysTask.status, 'processing'))
-    .then(res => {
-      const affected = affectedRows(res)
-      if (affected > 0) console.log(`🔁 已清理 ${affected} 个中断的生成任务`)
+  recoverInterruptedTasks()
+    .then(({ failed, resumed }) => {
+      if (failed > 0) console.log(`🔁 启动恢复: ${failed} 个提交期中断的任务已标失败`)
+      if (resumed > 0) console.log(`🔁 启动恢复: ${resumed} 个带上游任务 ID 的任务已续跑轮询`)
     })
-    .catch(err => console.error('清理中断任务失败:', err?.message))
+    .catch(err => console.error('启动恢复失败:', err?.message))
 
   serve({ fetch: app.fetch, port })
 }

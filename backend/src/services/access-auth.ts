@@ -21,6 +21,11 @@ function tokenFor(hash: string): string {
   return sha256(`huobao-access:${hash}`)
 }
 
+/** 媒体令牌：与访问令牌不同源（同密码派生），仅放行 /static/*，泄露不波及 API */
+function mediaTokenFor(hash: string): string {
+  return sha256(`huobao-media:${hash}`)
+}
+
 async function getHash(): Promise<string | null> {
   const [row] = await db.select().from(schema.appSettings)
     .where(eq(schema.appSettings.key, ACCESS_PASSWORD_KEY))
@@ -31,6 +36,12 @@ async function getHash(): Promise<string | null> {
 export async function currentToken(): Promise<string | null> {
   const hash = await getHash()
   return hash ? tokenFor(hash) : null
+}
+
+/** 当前媒体令牌（未启用密码时为 null）：拼在媒体 URL 上供上游回源 /static/* */
+export async function currentMediaToken(): Promise<string | null> {
+  const hash = await getHash()
+  return hash ? mediaTokenFor(hash) : null
 }
 
 /** 是否已启用访问密码 */
@@ -75,6 +86,30 @@ export async function isTokenValid(token: unknown): Promise<boolean> {
   const expected = tokenFor(hash)
   try {
     return timingSafeEqual(Buffer.from(token), Buffer.from(expected))
+  } catch {
+    return false
+  }
+}
+
+/** 媒体令牌是否有效：除访问令牌外，?token= 里的媒体令牌也放行 /static/* */
+export async function isMediaTokenValid(token: unknown): Promise<boolean> {
+  const hash = await getHash()
+  if (!hash || typeof token !== 'string' || !token) return false
+  try {
+    return timingSafeEqual(Buffer.from(token), Buffer.from(mediaTokenFor(hash)))
+  } catch {
+    return false
+  }
+}
+
+/** 初始访问密码：环境变量 HUOBAO_ACCESS_PASSWORD。仅在库中从未设置过密码时生效（幂等，
+ *  冷启动重复调用无副作用），之后可在设置页修改/清除，改后环境变量即失效 */
+export async function ensureInitialAccessPassword(): Promise<boolean> {
+  const raw = process.env.HUOBAO_ACCESS_PASSWORD?.trim()
+  if (!raw || await hasAccessPassword()) return false
+  try {
+    await setAccessPassword(raw)
+    return true
   } catch {
     return false
   }
