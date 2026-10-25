@@ -28,6 +28,7 @@ serverless 形态的部署说明。同一代码库支持三种形态：桌面（
 | `DATABASE_AUTH_TOKEN` | ✅ | Turso 访问令牌（同上，`TURSO_AUTH_TOKEN` 兼容） |
 | `BLOB_READ_WRITE_TOKEN` | ✅ | Vercel Blob 读写令牌（Storage 集成自动注入） |
 | `CRON_SECRET` | ✅ | sweep 端点鉴权，任意随机串（`openssl rand -base64 32`） |
+| `HUOBAO_ACCESS_PASSWORD` | 建议 | 初始访问密码（≥4 位）：库中从未设过密码时自动启用，之后可在设置页修改，改后此变量即失效 |
 | `HUOBAO_SERVERLESS` | ✅ | 固定 `1`，开启 serverless 行为分支 |
 | `HUOBAO_VERSION` | 建议 | 当前版本号，health 接口与更新检查用 |
 
