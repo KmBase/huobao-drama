@@ -17,6 +17,6 @@
     { "source": "/(.*)", "destination": { "service": "frontend" } }
   ],
   "crons": [
-    { "path": "/api/v1/tasks/sweep", "schedule": "* * * * *" }
+    { "path": "/api/v1/tasks/sweep", "schedule": "0 17 * * *" }
   ]
 }

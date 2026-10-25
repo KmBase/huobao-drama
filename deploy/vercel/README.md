@@ -61,9 +61,10 @@ serverless 形态的部署说明。同一代码库支持三种形态：桌面（
 - 轮询阶段：Vercel Cron 每分钟调 `GET /api/v1/tasks/sweep`（`CRON_SECRET` 鉴权），
   单次推进一档；任务以 `sys_task.updated_at` 心跳互斥，超 2 小时兜底标失败
 
-**注意**：Vercel Hobby 计划的 Cron 最短间隔为每天一次（视频任务会极慢），
-Pro 计划支持每分钟。Hobby 用户可用外部 cron（如 cron-job.org）每分钟
-`POST /api/v1/tasks/sweep` + `Authorization: Bearer <CRON_SECRET>` 替代。
+**注意**：Vercel Hobby 计划的 Cron 最短间隔为每天一次（`vercel.json` 里的 sweep cron
+仅为兜底；视频任务会极慢），Pro 计划改回 `* * * * *` 每分钟。Hobby 用户务必用外部
+cron（如 cron-job.org）每分钟 `GET /api/v1/tasks/sweep` + `Authorization: Bearer <CRON_SECRET>`
+替代，这是任务推进的实际驱动。
 
 ## 与桌面/服务器形态的关系
 
